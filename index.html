@@ -403,6 +403,41 @@
       font-weight: 600;
     }
 
+    /* ===== WEEKDOEL ===== */
+    .goal-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .goal-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .goal-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+    .goal-edit { display: flex; align-items: center; gap: 6px; }
+    .goal-input {
+      width: 70px; padding: 6px 8px; font-size: 13px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      background: var(--bg-base); color: var(--text-primary);
+    }
+    .goal-bar {
+      height: 10px; border-radius: 999px; background: var(--bg-hover);
+      overflow: hidden;
+    }
+    .goal-bar-fill {
+      height: 100%; width: 0%; border-radius: 999px;
+      background: var(--accent); transition: width var(--transition);
+    }
+    .goal-bar-fill.reached { background: #22c55e; }
+    .goal-meta { margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+
     /* ===== LOG SECTIE ===== */
     .log-section {
       background: var(--bg-surface);
@@ -562,13 +597,38 @@
     }
 
     .session-note {
-      max-width: 1px;
+      flex: 1;
+      min-width: 0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       font-style: italic;
       color: var(--text-secondary) !important;
     }
+
+    .session-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .session-actions {
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .row-btn {
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+      border-radius: var(--radius-sm);
+      width: 26px; height: 26px;
+      cursor: pointer;
+      font-size: 13px;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: all var(--transition);
+    }
+    .row-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-strong); }
+    .row-btn.danger:hover { color: var(--error); border-color: rgba(239,68,68,0.4); }
 
     .session-chip {
       display: inline-flex;
@@ -1038,6 +1098,45 @@
   </div>
 </div>
 
+<!-- ===== SESSIE TOEVOEGEN / BEWERKEN MODAL ===== -->
+<div class="modal-backdrop" id="sessionFormModal">
+  <div class="modal" role="dialog" aria-labelledby="sessionFormTitle">
+    <div class="modal-header">
+      <span class="modal-title" id="sessionFormTitle">Sessie toevoegen</span>
+      <button class="modal-close" onclick="closeSessionForm()" aria-label="Sluiten">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label" for="sfDate">Datum</label>
+        <input class="form-input" type="date" id="sfDate" />
+      </div>
+      <div style="display:flex;gap:12px;">
+        <div class="form-group" style="flex:1;">
+          <label class="form-label" for="sfStart">Inkloktijd</label>
+          <input class="form-input" type="time" id="sfStart" />
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label class="form-label" for="sfEnd">Uitkloktijd</label>
+          <input class="form-input" type="time" id="sfEnd" />
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="sfNote">Werk (optioneel)</label>
+        <input class="form-input" type="text" id="sfNote" placeholder="bv. Verslag schrijven" />
+        <div id="sfError" style="font-size:12px;color:var(--error);margin-top:8px;display:none;"></div>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between;">
+      <button class="btn" id="sfDeleteBtn" onclick="deleteSessionFromForm()"
+        style="color:var(--error);border-color:rgba(239,68,68,0.3);display:none;">&#9888; Verwijderen</button>
+      <div style="display:flex;gap:8px;margin-left:auto;">
+        <button class="btn" onclick="closeSessionForm()">Annuleren</button>
+        <button class="btn primary" id="sfSaveBtn" onclick="submitSessionForm()">Opslaan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ===== MAIN APP ===== -->
 <div class="app-wrapper">
 
@@ -1111,6 +1210,20 @@
     </div>
   </div>
 
+  <!-- Weekdoel -->
+  <div class="goal-card">
+    <div class="goal-top">
+      <span class="goal-title">Weekdoel</span>
+      <div class="goal-edit">
+        <input type="number" id="goalInput" class="goal-input" min="0" step="0.5" placeholder="bv. 20" />
+        <span style="font-size:12px;color:var(--text-secondary);">u</span>
+        <button class="btn-sm" onclick="saveGoal()">Instellen</button>
+      </div>
+    </div>
+    <div class="goal-bar"><div class="goal-bar-fill" id="goalBarFill"></div></div>
+    <div class="goal-meta"><span id="goalText">Stel een weekdoel in om je voortgang te zien.</span></div>
+  </div>
+
   <!-- Log sectie -->
   <div class="log-section">
     <div class="log-header">
@@ -1123,6 +1236,9 @@
         </div>
       </div>
       <div class="log-actions">
+        <button class="btn-sm" onclick="openAddSession()" title="Sessie handmatig toevoegen">
+          &#43; Sessie
+        </button>
         <button class="btn-sm accent" onclick="exportExcel()" title="Exporteer naar Excel">
           &#8595; Excel
         </button>
@@ -1172,6 +1288,7 @@ const STORAGE_KEYS = {
   get log()     { return 'urentracker_log_'     + (USER.userId || 'anon'); },
   get active()  { return 'urentracker_active_'  + (USER.userId || 'anon'); },
   get pending() { return 'urentracker_pending_' + (USER.userId || 'anon'); },
+  get goal()    { return 'urentracker_goal_'    + (USER.userId || 'anon'); },
 };
 
 /* =====================================================
@@ -1393,7 +1510,7 @@ function submitOnboarding() {
   const id = deriveIdentity(val);
   if (!id) {
     const err = document.getElementById('onboardError');
-    err.textContent = 'Voer een geldig UHasselt-adres in (…@student.uhasselt.be).';
+    err.textContent = 'Voer een geldig UHasselt-adres in (…@student.uhasselt.be of …@uhasselt.be).';
     err.style.display = 'block';
     return;
   }
@@ -1799,6 +1916,249 @@ async function updateStats() {
   document.getElementById('statWeek').textContent   = weekTotal.toFixed(2);
   document.getElementById('statMonth').textContent  = monthTotal.toFixed(2);
   document.getElementById('statAvg').textContent    = avgPerDay.toFixed(2);
+
+  renderGoalProgress(weekTotal);
+}
+
+/* =====================================================
+   WEEKDOEL
+   ===================================================== */
+function getGoal() {
+  const raw = localStorage.getItem(STORAGE_KEYS.goal);
+  const n = raw ? parseFloat(raw) : 0;
+  return isNaN(n) ? 0 : n;
+}
+
+function saveGoal() {
+  const val = parseFloat(document.getElementById('goalInput').value);
+  if (isNaN(val) || val < 0) {
+    showToast('Voer een geldig aantal uren in.', 'warning');
+    return;
+  }
+  localStorage.setItem(STORAGE_KEYS.goal, String(val));
+  showToast(val > 0 ? `Weekdoel ingesteld op ${val} u.` : 'Weekdoel gewist.', 'success');
+  updateStats();
+}
+
+// Vult het invoerveld + tekent de voortgangsbalk op basis van de week-uren
+function renderGoalProgress(weekTotal) {
+  const goal = getGoal();
+  const input = document.getElementById('goalInput');
+  if (input && document.activeElement !== input) input.value = goal > 0 ? goal : '';
+
+  const fill = document.getElementById('goalBarFill');
+  const text = document.getElementById('goalText');
+  if (!fill || !text) return;
+
+  if (goal <= 0) {
+    fill.style.width = '0%';
+    fill.classList.remove('reached');
+    text.textContent = 'Stel een weekdoel in om je voortgang te zien.';
+    return;
+  }
+
+  const pct = Math.min(100, (weekTotal / goal) * 100);
+  fill.style.width = pct.toFixed(0) + '%';
+  const reached = weekTotal >= goal;
+  fill.classList.toggle('reached', reached);
+  if (reached) {
+    text.textContent = `🎉 Doel bereikt! ${weekTotal.toFixed(2)} u van ${goal} u deze week.`;
+  } else {
+    text.textContent = `${weekTotal.toFixed(2)} u van ${goal} u — nog ${(goal - weekTotal).toFixed(2)} u te gaan.`;
+  }
+}
+
+/* =====================================================
+   SESSIE BEHEER — toevoegen / bewerken / verwijderen
+   ===================================================== */
+let _sfMode = 'add';      // 'add' | 'edit'
+let _sfOrig = null;       // bij edit: {date, clockIn} van de bestaande sessie
+
+function isoToDateKey(iso) { const p = iso.split('-'); return `${p[2]}/${p[1]}/${p[0]}`; }
+function dateKeyToIso(dk)  { const p = dk.split('/');  return `${p[2]}-${p[1]}-${p[0]}`; }
+function timeToMinutes(t)  { const p = String(t).split(':'); return (+p[0]) * 60 + (+p[1]); }
+
+function openAddSession() {
+  _sfMode = 'add'; _sfOrig = null;
+  document.getElementById('sessionFormTitle').textContent = 'Sessie toevoegen';
+  document.getElementById('sfDeleteBtn').style.display = 'none';
+  document.getElementById('sfDate').removeAttribute('readonly');
+  document.getElementById('sfDate').value  = dateKeyToIso(toDateKey(new Date()));
+  document.getElementById('sfStart').value = '';
+  document.getElementById('sfEnd').value   = '';
+  document.getElementById('sfNote').value  = '';
+  document.getElementById('sfError').style.display = 'none';
+  document.getElementById('sessionFormModal').classList.add('open');
+}
+
+async function openEditSession(dateKey, clockIn) {
+  const log = JSON.parse(localStorage.getItem(STORAGE_KEYS.log) || '[]');
+  const s = log.find(x => x.date === dateKey && x.clockIn === clockIn);
+  if (!s) { showToast('Sessie niet gevonden.', 'warning'); return; }
+
+  _sfMode = 'edit'; _sfOrig = { date: dateKey, clockIn: clockIn };
+  document.getElementById('sessionFormTitle').textContent = 'Sessie bewerken';
+  document.getElementById('sfDeleteBtn').style.display = '';
+  // Datum niet wijzigbaar bij bewerken (voorkomt verschuiven tussen dagen)
+  const dEl = document.getElementById('sfDate');
+  dEl.value = dateKeyToIso(dateKey);
+  dEl.setAttribute('readonly', 'readonly');
+  document.getElementById('sfStart').value = s.clockIn;
+  document.getElementById('sfEnd').value   = s.clockOut;
+  document.getElementById('sfNote').value  = s.note || '';
+  document.getElementById('sfError').style.display = 'none';
+  document.getElementById('sessionFormModal').classList.add('open');
+}
+
+function closeSessionForm() {
+  document.getElementById('sessionFormModal').classList.remove('open');
+}
+
+function sfShowError(msg) {
+  const el = document.getElementById('sfError');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+async function submitSessionForm() {
+  const iso   = document.getElementById('sfDate').value;
+  const start = document.getElementById('sfStart').value;
+  const end   = document.getElementById('sfEnd').value;
+  const note  = document.getElementById('sfNote').value.trim();
+
+  if (!iso)              return sfShowError('Kies een datum.');
+  if (!start || !end)    return sfShowError('Vul zowel inklok- als uitkloktijd in.');
+  if (timeToMinutes(end) <= timeToMinutes(start))
+    return sfShowError('Uitkloktijd moet later zijn dan inkloktijd.');
+
+  const dateKey   = isoToDateKey(iso);
+  const dateObj   = parseDateKey(dateKey);
+  const duration  = Math.round(((timeToMinutes(end) - timeToMinutes(start)) / 60) * 100) / 100;
+
+  const entry = {
+    userId:   USER.userId,
+    email:    USER.email,
+    date:     dateKey,
+    day:      NL_DAYS[dateObj.getDay()],
+    session:  1, // server/lokaal hernummeren dit chronologisch
+    clockIn:  start,
+    clockOut: end,
+    duration: duration,
+    dayTotal: 0,
+    month:    getNlMonthLabel(dateObj.getFullYear(), dateObj.getMonth()),
+    note:     note,
+  };
+
+  closeSessionForm();
+
+  if (_sfMode === 'edit') {
+    localEditSession(_sfOrig, entry);
+    // Stuur edit naar de Sheet (origClockIn identificeert de rij)
+    if (CONFIG.adapter === 'googlesheets') {
+      try {
+        await sheetRequest({
+          action: 'edit', userId: USER.userId, date: dateKey,
+          origClockIn: _sfOrig.clockIn, clockIn: start, clockOut: end,
+          duration: duration, note: note, month: entry.month,
+        });
+        showToast('Sessie bijgewerkt · Sheets ✓', 'success');
+      } catch (e) {
+        showToast(`Lokaal bijgewerkt. Sheets mislukte: ${e.message}`, 'warning');
+      }
+    } else {
+      showToast('Sessie bijgewerkt.', 'success');
+    }
+  } else {
+    localAddSession(entry);
+    if (CONFIG.adapter === 'googlesheets') {
+      try {
+        await new GoogleSheetsAdapter().saveSession(entry);
+        showToast('Sessie toegevoegd · Sheets ✓', 'success');
+      } catch (e) {
+        addToPending(entry);
+        showToast(`Sessie lokaal toegevoegd. Sheets mislukte: ${e.message}`, 'warning');
+        updatePendingCount();
+      }
+    } else {
+      showToast('Sessie toegevoegd.', 'success');
+    }
+  }
+
+  updateStats();
+  renderLog();
+}
+
+function deleteSessionFromForm() {
+  if (_sfOrig) confirmDeleteSession(_sfOrig.date, _sfOrig.clockIn);
+}
+
+async function confirmDeleteSession(dateKey, clockIn) {
+  if (!confirm(`Sessie van ${dateKey} (${clockIn}) verwijderen?`)) return;
+  closeSessionForm();
+
+  localDeleteSession(dateKey, clockIn);
+  const dateObj = parseDateKey(dateKey);
+  const month = getNlMonthLabel(dateObj.getFullYear(), dateObj.getMonth());
+
+  if (CONFIG.adapter === 'googlesheets') {
+    try {
+      await sheetRequest({ action: 'delete', userId: USER.userId, date: dateKey, clockIn: clockIn, month: month });
+      showToast('Sessie verwijderd · Sheets ✓', 'success');
+    } catch (e) {
+      showToast(`Lokaal verwijderd. Sheets mislukte: ${e.message}`, 'warning');
+    }
+  } else {
+    showToast('Sessie verwijderd.', 'success');
+  }
+
+  updateStats();
+  renderLog();
+}
+
+/* --- Lokale log-bewerkingen (spiegelen de Sheet-logica) --- */
+
+// Sorteert een dag chronologisch, hernummert sessie# en zet dagtotaal op de eerste
+function recomputeLocalDay(log, dateKey) {
+  const items = log.filter(s => s.date === dateKey);
+  items.sort((a, b) => a.clockIn < b.clockIn ? -1 : (a.clockIn > b.clockIn ? 1 : 0));
+  let total = items.reduce((t, s) => t + (s.duration || 0), 0);
+  total = Math.round(total * 100) / 100;
+  items.forEach((s, idx) => { s.session = idx + 1; s.dayTotal = idx === 0 ? total : 0; });
+}
+
+function saveLog(log) { localStorage.setItem(STORAGE_KEYS.log, JSON.stringify(log)); }
+
+function localAddSession(entry) {
+  const log = JSON.parse(localStorage.getItem(STORAGE_KEYS.log) || '[]');
+  const idx = log.findIndex(s => s.date === entry.date && s.clockIn === entry.clockIn);
+  if (idx >= 0) log[idx] = entry; else log.push(entry);
+  recomputeLocalDay(log, entry.date);
+  saveLog(log);
+}
+
+function localEditSession(orig, entry) {
+  const log = JSON.parse(localStorage.getItem(STORAGE_KEYS.log) || '[]');
+  const idx = log.findIndex(s => s.date === orig.date && s.clockIn === orig.clockIn);
+  if (idx >= 0) log[idx] = entry; else log.push(entry);
+  recomputeLocalDay(log, entry.date);
+  saveLog(log);
+}
+
+function localDeleteSession(dateKey, clockIn) {
+  let log = JSON.parse(localStorage.getItem(STORAGE_KEYS.log) || '[]');
+  log = log.filter(s => !(s.date === dateKey && s.clockIn === clockIn));
+  recomputeLocalDay(log, dateKey);
+  saveLog(log);
+}
+
+// Generieke POST naar het Apps Script (voor edit/delete)
+async function sheetRequest(payload) {
+  const url = CONFIG.googleSheets.endpointUrl;
+  if (!url || url.indexOf('PLAK_HIER') === 0) throw new Error('Geen endpoint URL geconfigureerd.');
+  const resp = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const data = await resp.json();
+  if (!data.success) throw new Error(data.error || 'Onbekende fout van Apps Script');
+  return data;
 }
 
 /* =====================================================
@@ -1895,7 +2255,17 @@ async function renderLog() {
           </td>
           <td>${s.clockIn} – ${s.clockOut}</td>
           <td>${s.duration?.toFixed(2)} u</td>
-          <td class="session-note" title="${escapeHtml(s.note || '')}">${escapeHtml(s.note || '')}</td>
+          <td>
+            <div class="session-cell">
+              <span class="session-note" title="${escapeHtml(s.note || '')}">${escapeHtml(s.note || '')}</span>
+              <span class="session-actions">
+                <button class="row-btn" title="Bewerken"
+                  onclick="openEditSession('${dateKey}','${s.clockIn}')">&#9998;</button>
+                <button class="row-btn danger" title="Verwijderen"
+                  onclick="confirmDeleteSession('${dateKey}','${s.clockIn}')">&#128465;</button>
+              </span>
+            </div>
+          </td>
         </tr>`;
     }
   }
@@ -2156,14 +2526,22 @@ function init() {
     getNlMonthLabel(currentLogYear, currentLogMonth);
 
   // --- Event listeners ---
-  // Sluit settings-modal bij klikken buiten
+  // Sluit modals bij klikken buiten
   document.getElementById('settingsModal').addEventListener('click', function(e) {
     if (e.target === this) closeSettings();
   });
+  document.getElementById('sessionFormModal').addEventListener('click', function(e) {
+    if (e.target === this) closeSessionForm();
+  });
 
-  // ESC sluit settings-modal
+  // ESC sluit open modals
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeSettings();
+    if (e.key === 'Escape') { closeSettings(); closeSessionForm(); }
+  });
+
+  // Weekdoel: Enter in het invoerveld slaat op
+  document.getElementById('goalInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); saveGoal(); }
   });
 
   // Werk-omschrijving modal: opslaan-knop + Enter-toets

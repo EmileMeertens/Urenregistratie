@@ -50,7 +50,7 @@ function setSpreadsheetId() {
 
 // Versie-stempel — zichtbaar via doGet, zodat je kunt controleren welke code
 // daadwerkelijk gedeployed is. Hoog dit op bij elke wijziging.
-var CODE_VERSION      = 'v8-crossdevice';
+var CODE_VERSION      = 'v9-edit-delete';
 
 var SHEET_SESSIES     = 'Sessies'; // alleen nog fallback voor payload zonder userId
 var SHEET_MAAND       = 'Maandoverzicht';
@@ -194,15 +194,13 @@ function doPost(e) {
       return jsonResponse({ success: false, error: 'Ongeldige JSON in POST-body: ' + parseErr.message });
     }
 
-    // Valideer verplichte velden
-    var required = ['userId', 'date', 'day', 'session', 'clockIn', 'clockOut', 'duration', 'month'];
-    for (var i = 0; i < required.length; i++) {
-      if (payload[required[i]] === undefined || payload[required[i]] === null) {
-        return jsonResponse({ success: false, error: 'Verplicht veld ontbreekt: ' + required[i] });
-      }
-    }
+    // Actie: 'add' (standaard), 'edit' of 'delete'
+    var action = payload.action || 'add';
 
-    // Bepaal de tabnaam van deze gebruiker (bv. "emile.meertens")
+    // userId is altijd verplicht → bepaalt het tabblad
+    if (!payload.userId) {
+      return jsonResponse({ success: false, error: 'Verplicht veld ontbreekt: userId' });
+    }
     var userTab = userTabNaam_(payload.userId);
     if (!userTab) {
       return jsonResponse({ success: false, error: 'Ongeldige userId.' });
@@ -226,45 +224,67 @@ function doPost(e) {
     }
 
     try {
-      // --- 4. Zorg dat het tabblad van DEZE gebruiker bestaat ---
-      var sessiesSheet = getOrCreateSheet(ss, userTab, HEADERS_SESSIES);
+      var sheet = getOrCreateSheet(ss, userTab, HEADERS_SESSIES);
+      var datum = String(payload.date || '').trim();
+      var maand = payload.month || maandLabelUitDatum_(datum);
 
-      // --- 5. DEDUP-check: bestaat datum + sessie# al in dit tabblad? ---
-      var alleRijen = sessiesSheet.getDataRange().getValues();
-      // alleRijen[0] = headers, rest = data
-      for (var r = 1; r < alleRijen.length; r++) {
-        var rDatum   = alleRijen[r][0]; // kolom A: Datum
-        var rSessie  = alleRijen[r][2]; // kolom C: Sessie #
-        // Vergelijk als strings om type-issues te vermijden
-        if (normalizeDatum_(rDatum) === String(payload.date).trim() && Number(rSessie) === Number(payload.session)) {
-          // Duplicaat gevonden — niet opnieuw toevoegen
+      // ===== VERWIJDEREN =====
+      if (action === 'delete') {
+        var dRow = vindSessieRij_(sheet, datum, payload.clockIn);
+        if (dRow > 0) sheet.deleteRow(dRow);
+        herberekenDag_(sheet, datum);              // hernummert + dagtotaal
+        updateMonthSummary(ss, maand, userTab);
+        return jsonResponse({ success: true, deleted: dRow > 0 });
+      }
+
+      // ===== BEWERKEN =====
+      if (action === 'edit') {
+        // Identificeer de bestaande rij via (datum + oorspronkelijke inkloktijd)
+        var eRow = vindSessieRij_(sheet, datum, payload.origClockIn);
+        if (eRow <= 0) {
+          return jsonResponse({ success: false, error: 'Te bewerken sessie niet gevonden.' });
+        }
+        sheet.getRange(eRow, 4).setValue(payload.clockIn);    // D: Inkloktijd
+        sheet.getRange(eRow, 5).setValue(payload.clockOut);   // E: Uitkloktijd
+        sheet.getRange(eRow, 6).setValue(payload.duration);   // F: Duur
+        sheet.getRange(eRow, 8).setValue(payload.note || '');  // H: Werk
+        herberekenDag_(sheet, datum);
+        updateMonthSummary(ss, maand, userTab);
+        return jsonResponse({ success: true, edited: true });
+      }
+
+      // ===== TOEVOEGEN (standaard) =====
+      var reqAdd = ['date', 'day', 'clockIn', 'clockOut', 'duration'];
+      for (var i = 0; i < reqAdd.length; i++) {
+        if (payload[reqAdd[i]] === undefined || payload[reqAdd[i]] === null) {
+          return jsonResponse({ success: false, error: 'Verplicht veld ontbreekt: ' + reqAdd[i] });
+        }
+      }
+      // DEDUP op (datum + inkloktijd): voorkomt dubbel verzonden sessies
+      var rows = sheet.getDataRange().getValues();
+      for (var r = 1; r < rows.length; r++) {
+        if (normalizeDatum_(rows[r][0]) === datum &&
+            String(rows[r][3]).trim() === String(payload.clockIn).trim()) {
           return jsonResponse({ success: true, duplicate: true });
         }
       }
-
-      // --- 6. Voeg nieuwe sessierij toe (Dagtotaal kolom G nog leeg) ---
-      sessiesSheet.appendRow([
-        payload.date,        // A: Datum
-        payload.day,         // B: Dag
-        payload.session,     // C: Sessie #
-        payload.clockIn,     // D: Inkloktijd
-        payload.clockOut,    // E: Uitkloktijd
-        payload.duration,    // F: Duur sessie
-        '',                  // G: Dagtotaal — wordt hieronder berekend en ingevuld
-        payload.note || ''   // H: Werk — waar er tijdens deze shift aan gewerkt is
+      sheet.appendRow([
+        datum,                  // A: Datum
+        payload.day,            // B: Dag
+        payload.session || 1,   // C: Sessie # (wordt zo herberekend)
+        payload.clockIn,        // D: Inkloktijd
+        payload.clockOut,       // E: Uitkloktijd
+        payload.duration,       // F: Duur sessie
+        '',                     // G: Dagtotaal
+        payload.note || ''      // H: Werk
       ]);
-
-      // --- 7. Herbereken en update Dagtotaal in de eerste-sessie-rij ---
-      updateDagtotaal(sessiesSheet, payload.date);
-
-      // --- 8. Update gecombineerd maandoverzicht voor deze gebruiker ---
-      updateMonthSummary(ss, payload.month, userTab);
+      herberekenDag_(sheet, datum);
+      updateMonthSummary(ss, maand, userTab);
+      return jsonResponse({ success: true });
 
     } finally {
       lock.releaseLock();
     }
-
-    return jsonResponse({ success: true });
 
   } catch (err) {
     // Vang onverwachte fouten op
@@ -273,40 +293,60 @@ function doPost(e) {
 }
 
 // ============================================================
-// DAGTOTAAL BEREKENING
+// DAG HERBEREKENEN (hernummeren + dagtotaal)
 // ============================================================
 
 /**
- * Herberekent het dagtotaal voor een gegeven datum:
- * - Somt kolom F (Duur sessie) op voor alle rijen met die datum
- * - Schrijft het totaal in kolom G (Dagtotaal) van de rij met Sessie# 1
- * - Wist kolom G van alle overige rijen voor die datum
+ * Herbouwt één dag na een toevoeging/bewerking/verwijdering:
+ * - Sorteert alle sessies van die datum chronologisch op inkloktijd
+ * - Hernummert kolom C (Sessie #) als 1..n
+ * - Zet het dagtotaal (som van kolom F) in kolom G van de eerste sessie,
+ *   en maakt kolom G leeg bij de overige sessies
  *
- * @param {Sheet}  sheet  De "Sessies" sheet
+ * @param {Sheet}  sheet  Het tabblad van de gebruiker
  * @param {string} datum  Datum in dd/mm/yyyy formaat
  */
-function updateDagtotaal(sheet, datum) {
+function herberekenDag_(sheet, datum) {
   var data = sheet.getDataRange().getValues();
-  // data[0] = headers
-  var eersteRijIndex = -1;  // 0-gebaseerde index in data (inclusief header)
-  var totaalDuur     = 0;
+  var doel = String(datum).trim();
+  var items = []; // {row (1-based), clockIn, duur}
 
-  var doelDatum = String(datum).trim();
   for (var r = 1; r < data.length; r++) {
-    if (normalizeDatum_(data[r][0]) === doelDatum) {
-      totaalDuur += Number(data[r][5]) || 0; // kolom F (index 5)
-      // Wis bestaand dagtotaal in deze rij (wordt hieronder correct ingevuld)
-      sheet.getRange(r + 1, 7).setValue(''); // +1 omdat Sheets 1-gebaseerd is
-      if (Number(data[r][2]) === 1) {
-        eersteRijIndex = r + 1; // 1-gebaseerde rijnummer voor Sheets
-      }
+    if (normalizeDatum_(data[r][0]) === doel) {
+      items.push({ row: r + 1, clockIn: String(data[r][3] || ''), duur: Number(data[r][5]) || 0 });
     }
   }
+  if (items.length === 0) return;
 
-  // Schrijf het totaal in de eerste-sessie-rij
-  if (eersteRijIndex > 0) {
-    sheet.getRange(eersteRijIndex, 7).setValue(Math.round(totaalDuur * 100) / 100);
+  // Chronologisch op inkloktijd (HH:MM sorteert correct als string)
+  items.sort(function (a, b) {
+    return a.clockIn < b.clockIn ? -1 : (a.clockIn > b.clockIn ? 1 : 0);
+  });
+
+  var totaal = 0;
+  for (var i = 0; i < items.length; i++) totaal += items[i].duur;
+  totaal = Math.round(totaal * 100) / 100;
+
+  for (var j = 0; j < items.length; j++) {
+    sheet.getRange(items[j].row, 3).setValue(j + 1);                 // Sessie #
+    sheet.getRange(items[j].row, 7).setValue(j === 0 ? totaal : ''); // Dagtotaal
   }
+}
+
+/**
+ * Zoekt het rijnummer (1-based) van een sessie op (datum + inkloktijd).
+ * @return {number} rijnummer, of -1 als niet gevonden.
+ */
+function vindSessieRij_(sheet, datum, clockIn) {
+  var data = sheet.getDataRange().getValues();
+  var doel = String(datum).trim();
+  var ci   = String(clockIn || '').trim();
+  for (var r = 1; r < data.length; r++) {
+    if (normalizeDatum_(data[r][0]) === doel && String(data[r][3]).trim() === ci) {
+      return r + 1;
+    }
+  }
+  return -1;
 }
 
 // ============================================================
