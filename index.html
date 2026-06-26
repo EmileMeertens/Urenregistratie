@@ -1,0 +1,2200 @@
+<!DOCTYPE html>
+<html lang="nl-BE" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Uren Tracker — UHasselt</title>
+
+  <!-- Satoshi font via Fontshare -->
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet" />
+
+  <!-- SheetJS voor Excel export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    /* ===== CSS CUSTOM PROPERTIES / THEMING ===== */
+    :root {
+      --teal-400: #2dd4bf;
+      --teal-500: #14b8a6;
+      --teal-600: #0d9488;
+      --teal-700: #0f766e;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+
+      --transition: 0.2s ease;
+
+      --font: 'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    [data-theme="dark"] {
+      --bg-base:      #0f1117;
+      --bg-surface:   #1a1d27;
+      --bg-elevated:  #22263a;
+      --bg-hover:     #2a2f45;
+
+      --border:       rgba(255,255,255,0.08);
+      --border-strong:rgba(255,255,255,0.15);
+
+      --text-primary:   #f0f4ff;
+      --text-secondary: #8b93b0;
+      --text-muted:     #555e7a;
+
+      --accent:         var(--teal-500);
+      --accent-glow:    rgba(20,184,166,0.25);
+      --accent-text:    #0f1117;
+
+      --success:        #22c55e;
+      --warning:        #f59e0b;
+      --error:          #ef4444;
+
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.5);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.6);
+    }
+
+    [data-theme="light"] {
+      --bg-base:      #f4f6fb;
+      --bg-surface:   #ffffff;
+      --bg-elevated:  #eef1f8;
+      --bg-hover:     #e4e8f3;
+
+      --border:       rgba(0,0,0,0.08);
+      --border-strong:rgba(0,0,0,0.15);
+
+      --text-primary:   #111827;
+      --text-secondary: #4b5563;
+      --text-muted:     #9ca3af;
+
+      --accent:         var(--teal-600);
+      --accent-glow:    rgba(13,148,136,0.15);
+      --accent-text:    #ffffff;
+
+      --success:        #16a34a;
+      --warning:        #d97706;
+      --error:          #dc2626;
+
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.16);
+    }
+
+    /* ===== RESET & BASE ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { font-size: 16px; scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg-base);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.5;
+      transition: background var(--transition), color var(--transition);
+    }
+
+    /* ===== SCROLLBAR ===== */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
+
+    /* ===== LAYOUT ===== */
+    .app-wrapper {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px 16px 80px;
+    }
+
+    /* ===== TOPBAR ===== */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      background: var(--accent);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-text);
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: -0.5px;
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    .brand-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .brand-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition);
+      font-size: 16px;
+    }
+
+    .icon-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--border-strong);
+    }
+
+    .user-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 38px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all var(--transition);
+      max-width: 180px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .user-chip:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+    .user-chip .user-dot { color: var(--accent); font-size: 10px; }
+
+    /* ===== CARDS ===== */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+      transition: background var(--transition), border-color var(--transition);
+    }
+
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    /* ===== HERO SECTION ===== */
+    .hero {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 28px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-md);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -40px;
+      right: -40px;
+      width: 200px;
+      height: 200px;
+      background: var(--accent-glow);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .hero-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .live-clock {
+      font-size: 38px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+
+    .live-date {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+      font-weight: 500;
+      text-transform: capitalize;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      transition: all var(--transition);
+    }
+
+    .status-badge.active {
+      background: rgba(34,197,94,0.1);
+      border-color: rgba(34,197,94,0.3);
+      color: var(--success);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .status-badge.active .status-dot {
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+      50% { opacity: 0.8; transform: scale(1.1); box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+    }
+
+    .session-timer {
+      font-size: 42px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -1px;
+      line-height: 1;
+      text-align: center;
+      margin: 4px 0 8px;
+      min-height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .session-timer-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }
+
+    .clock-btn {
+      width: 100%;
+      padding: 16px;
+      border-radius: var(--radius-md);
+      border: none;
+      font-family: var(--font);
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all var(--transition);
+      letter-spacing: 0.02em;
+      margin-top: 16px;
+    }
+
+    .clock-btn.clock-in {
+      background: var(--accent);
+      color: var(--accent-text);
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+
+    .clock-btn.clock-in:hover {
+      background: var(--teal-400);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 28px var(--accent-glow);
+    }
+
+    .clock-btn.clock-out {
+      background: rgba(239,68,68,0.15);
+      color: var(--error);
+      border: 1px solid rgba(239,68,68,0.3);
+    }
+
+    .clock-btn.clock-out:hover {
+      background: rgba(239,68,68,0.25);
+      transform: translateY(-1px);
+    }
+
+    /* ===== STATS GRID ===== */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    @media (min-width: 640px) {
+      .stats-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.5px;
+      line-height: 1.1;
+    }
+
+    .stat-value.accent { color: var(--accent); }
+
+    .stat-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+    }
+
+    /* ===== LOG SECTIE ===== */
+    .log-section {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .log-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .log-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .month-nav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .month-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      min-width: 110px;
+      text-align: center;
+    }
+
+    .log-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .btn-sm:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--border-strong);
+    }
+
+    .btn-sm.accent {
+      background: var(--accent);
+      color: var(--accent-text);
+      border-color: transparent;
+    }
+
+    .btn-sm.accent:hover {
+      background: var(--teal-400);
+    }
+
+    /* ===== LOG TABLE ===== */
+    .log-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .log-table th {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: 10px 20px;
+      text-align: left;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .log-table td {
+      padding: 12px 20px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    .log-table tr:last-child td { border-bottom: none; }
+
+    .day-row {
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+
+    .day-row:hover { background: var(--bg-elevated); }
+
+    .day-row td:first-child { color: var(--text-primary); font-weight: 600; }
+
+    .day-total-badge {
+      display: inline-flex;
+      align-items: center;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: 2px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .expand-icon {
+      display: inline-block;
+      transition: transform var(--transition);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .expand-icon.open { transform: rotate(90deg); }
+
+    .session-row {
+      background: var(--bg-elevated);
+      display: none;
+    }
+
+    .session-row.open { display: table-row; }
+
+    .session-row td {
+      padding: 8px 20px 8px 36px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .session-row td:first-child {
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .session-note {
+      max-width: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-style: italic;
+      color: var(--text-secondary) !important;
+    }
+
+    .session-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      padding: 2px 8px;
+      font-size: 11px;
+    }
+
+    .empty-state {
+      padding: 48px 20px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .empty-state-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+
+    .empty-state p {
+      font-size: 14px;
+    }
+
+    /* ===== MODAL ===== */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-xl);
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+      animation: slideUp 0.2s ease;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      transition: all var(--transition);
+    }
+
+    .modal-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    .modal-body { padding: 20px 24px; }
+
+    .form-group { margin-bottom: 16px; }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+
+    .form-input, .form-select {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-strong);
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      font-family: var(--font);
+      font-size: 13px;
+      transition: border-color var(--transition);
+      outline: none;
+    }
+
+    .form-input:focus, .form-select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .form-input::placeholder { color: var(--text-muted); }
+
+    .form-select option { background: var(--bg-surface); }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .btn {
+      padding: 9px 18px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    .btn.primary {
+      background: var(--accent);
+      color: var(--accent-text);
+      border-color: transparent;
+    }
+
+    .btn.primary:hover { background: var(--teal-400); }
+
+    /* ===== TOAST ===== */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      box-shadow: var(--shadow-md);
+      min-width: 260px;
+      max-width: 340px;
+      animation: toastIn 0.3s ease;
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .toast.success { border-color: rgba(34,197,94,0.4); }
+    .toast.warning { border-color: rgba(245,158,11,0.4); }
+    .toast.error   { border-color: rgba(239,68,68,0.4); }
+
+    .toast-icon { font-size: 16px; flex-shrink: 0; }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    /* ===== DIVIDER ===== */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 16px 0;
+    }
+
+    /* ===== INLINE ALERT ===== */
+    .alert {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+
+    .alert.info {
+      background: rgba(20,184,166,0.08);
+      border: 1px solid rgba(20,184,166,0.2);
+      color: var(--teal-400);
+    }
+
+    .alert.warning {
+      background: rgba(245,158,11,0.08);
+      border: 1px solid rgba(245,158,11,0.2);
+      color: var(--warning);
+    }
+
+    .alert-icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
+
+    /* ===== PENDING BADGE ===== */
+    .pending-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+
+    .pending-count {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--warning);
+    }
+
+    .pending-count.zero { color: var(--success); }
+
+    /* ===== INLOKKEN TIJDSTIP ===== */
+    .clockin-info {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    .clockin-time {
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    /* ===== SETUP GUIDE IN MODAL ===== */
+    .setup-steps {
+      background: var(--bg-elevated);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      padding: 14px;
+      margin-top: 8px;
+    }
+
+    .setup-steps ol {
+      padding-left: 18px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    .setup-steps code {
+      background: var(--bg-base);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 11px;
+      color: var(--accent);
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 480px) {
+      .hero { padding: 20px; }
+      .live-clock { font-size: 28px; }
+      .session-timer { font-size: 32px; }
+      .log-table th, .log-table td { padding: 10px 12px; }
+      .session-row td { padding: 8px 12px 8px 24px; }
+      .modal-body, .modal-footer, .modal-header { padding-left: 16px; padding-right: 16px; }
+    }
+
+    /* ===== TEST RESULT ===== */
+    .test-result {
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 500;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .test-result.show { display: block; }
+    .test-result.ok { background: rgba(34,197,94,0.1); color: var(--success); border: 1px solid rgba(34,197,94,0.2); }
+    .test-result.fail { background: rgba(239,68,68,0.1); color: var(--error); border: 1px solid rgba(239,68,68,0.2); }
+  </style>
+</head>
+<body>
+
+<!-- ===== TOAST CONTAINER ===== -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ===== SETTINGS MODAL ===== -->
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal" role="dialog" aria-labelledby="settingsTitle">
+    <div class="modal-header">
+      <span class="modal-title" id="settingsTitle">Instellingen</span>
+      <button class="modal-close" onclick="closeSettings()" aria-label="Sluiten">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Adapter keuze -->
+      <div class="form-group">
+        <label class="form-label" for="adapterSelect">Opslagmethode</label>
+        <select class="form-select" id="adapterSelect" onchange="onAdapterChange(this.value)">
+          <option value="localstorage">Lokale opslag (localStorage)</option>
+          <option value="googlesheets">Google Sheets (via Apps Script)</option>
+        </select>
+      </div>
+
+      <!-- Google Sheets sectie -->
+      <div id="sheetsSection">
+        <div class="form-group">
+          <label class="form-label" for="endpointInput">Apps Script Web App URL</label>
+          <input class="form-input" type="url" id="endpointInput"
+            placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" />
+          <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;">
+            De Spreadsheet ID wordt centraal ingesteld in het Apps Script
+            (Script Property <code>SPREADSHEET_ID</code>) — niet hier.
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-bottom:4px;">
+          <button class="btn-sm" onclick="testConnection()" id="testBtn">
+            <span>&#10003;</span> Test verbinding
+          </button>
+          <button class="btn-sm" onclick="flushPendingQueue()" id="flushBtn">
+            <span>&#9650;</span> Pending doorsturen
+          </button>
+        </div>
+        <div class="test-result" id="testResult"></div>
+
+        <div class="divider"></div>
+
+        <!-- Pending status -->
+        <div class="pending-row">
+          <span>Wachtende sessies (pending)</span>
+          <span class="pending-count" id="pendingCount">0</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Setup gids -->
+        <details>
+          <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">
+            &#9432; Hoe stel je het Apps Script in?
+          </summary>
+          <div class="setup-steps">
+            <ol>
+              <li>Ga naar <strong>script.google.com</strong> → Nieuw project</li>
+              <li>Plak het Apps Script (zie <code>SETUP.md</code>) in het editorvenster</li>
+              <li>Sla op, klik <strong>Implementeren → Nieuwe implementatie</strong></li>
+              <li>Type: <strong>Web-app</strong> · Toegang: <strong>Anyone</strong></li>
+              <li>Klik op <strong>Implementeren</strong> en kopieer de URL</li>
+              <li>Plak de URL hierboven in het URL-veld</li>
+              <li>Kies <em>Google Sheets</em> als opslagmethode en sla op</li>
+            </ol>
+          </div>
+        </details>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Thema -->
+      <div class="form-group">
+        <label class="form-label">Thema</label>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-sm" onclick="setTheme('dark')" id="themeBtn-dark">&#9790; Donker</button>
+          <button class="btn-sm" onclick="setTheme('light')" id="themeBtn-light">&#9788; Licht</button>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Danger zone -->
+      <div class="form-group">
+        <label class="form-label" style="color:var(--error)">Gegevens verwijderen</label>
+        <button class="btn-sm" onclick="clearAllData()" style="color:var(--error);border-color:rgba(239,68,68,0.3);">
+          &#9888; Alle data wissen
+        </button>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeSettings()">Annuleren</button>
+      <button class="btn primary" onclick="saveSettings()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== WERK-OMSCHRIJVING MODAL (bij uitklokken) ===== -->
+<div class="modal-backdrop" id="workModal">
+  <div class="modal" role="dialog" aria-labelledby="workTitle">
+    <div class="modal-header">
+      <span class="modal-title" id="workTitle">Waar heb je aan gewerkt?</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="workInput">Omschrijving van deze shift</label>
+        <textarea class="form-input" id="workInput" rows="3"
+          placeholder="bv. Verslag schrijven, klantenmails, voorraad aanvullen…"
+          style="resize:vertical;font-family:inherit;"></textarea>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;">
+          Tip: druk <strong>Enter</strong> om op te slaan · <strong>Shift+Enter</strong> voor een nieuwe regel
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="resolveWork('')">Overslaan</button>
+      <button class="btn primary" id="workSaveBtn">Opslaan &amp; uitklokken</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ONBOARDING / IDENTITEIT MODAL ===== -->
+<div class="modal-backdrop" id="onboardModal">
+  <div class="modal" role="dialog" aria-labelledby="onboardTitle">
+    <div class="modal-header">
+      <span class="modal-title" id="onboardTitle">Welkom 👋</span>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-secondary);margin:0 0 16px;line-height:1.5;">
+        Meld je aan met je <strong>UHasselt-e-mailadres</strong>. We gebruiken het deel
+        vóór de @ als je unieke naam, zodat je uren altijd in je eigen tabblad belanden.
+      </p>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="onboardEmail">UHasselt-e-mailadres</label>
+        <input class="form-input" type="email" id="onboardEmail" autocomplete="email"
+          placeholder="voornaam.naam@student.uhasselt.be" />
+        <div id="onboardError" style="font-size:12px;color:var(--error);margin-top:8px;display:none;"></div>
+        <div id="onboardPreview" style="font-size:12px;color:var(--accent);margin-top:8px;display:none;"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn primary" id="onboardBtn" style="width:100%;">Aanmelden &amp; starten</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MAIN APP ===== -->
+<div class="app-wrapper">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-logo">UT</div>
+      <div>
+        <div class="brand-name">Uren Tracker</div>
+        <div class="brand-sub">UHasselt</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button class="user-chip" onclick="changeIdentity()" title="Naam wijzigen" aria-label="Aangemeld als">
+        <span class="user-dot">&#9679;</span><span id="userBadge">—</span>
+      </button>
+      <button class="icon-btn" onclick="openSettings()" title="Instellingen" aria-label="Instellingen">&#9881;</button>
+      <button class="icon-btn" onclick="toggleTheme()" title="Thema wisselen" id="themeToggle" aria-label="Thema wisselen">&#9790;</button>
+    </div>
+  </div>
+
+  <!-- Hero / Klok sectie -->
+  <div class="hero">
+    <div class="hero-top">
+      <div>
+        <div class="live-clock" id="liveClock">--:--:--</div>
+        <div class="live-date" id="liveDate">laden...</div>
+      </div>
+      <div class="status-badge" id="statusBadge">
+        <span class="status-dot"></span>
+        <span id="statusText">Uitgeklokt</span>
+      </div>
+    </div>
+
+    <!-- Session timer -->
+    <div class="session-timer" id="sessionTimer">--:--:--</div>
+    <div class="session-timer-label" id="sessionTimerLabel">Huidige sessie</div>
+
+    <!-- Clock in info -->
+    <div class="clockin-info" id="clockinInfo" style="display:none;">
+      Ingeklokt om <span class="clockin-time" id="clockinTimeDisplay">--:--</span>
+    </div>
+
+    <!-- Dag totaal terwijl ingeklokt -->
+    <div class="clockin-info" id="dayTotalLive" style="display:none;margin-top:4px;">
+      Dagtotaal vandaag: <span class="clockin-time" id="dayTotalLiveValue">0.00</span> u
+    </div>
+
+    <button class="clock-btn clock-in" id="clockBtn" onclick="toggleClock()">
+      Inklokken
+    </button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value accent" id="statToday">0.00</div>
+      <div class="stat-label">Vandaag</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="statWeek">0.00</div>
+      <div class="stat-label">Deze week</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="statMonth">0.00</div>
+      <div class="stat-label">Deze maand</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="statAvg">0.00</div>
+      <div class="stat-label">Gem. per dag</div>
+    </div>
+  </div>
+
+  <!-- Log sectie -->
+  <div class="log-section">
+    <div class="log-header">
+      <div class="log-header-left">
+        <span class="log-title">Werklog</span>
+        <div class="month-nav">
+          <button class="icon-btn" style="width:28px;height:28px;font-size:12px;" onclick="prevMonth()" aria-label="Vorige maand">&#8592;</button>
+          <span class="month-label" id="monthLabel">—</span>
+          <button class="icon-btn" style="width:28px;height:28px;font-size:12px;" onclick="nextMonth()" aria-label="Volgende maand">&#8594;</button>
+        </div>
+      </div>
+      <div class="log-actions">
+        <button class="btn-sm accent" onclick="exportExcel()" title="Exporteer naar Excel">
+          &#8595; Excel
+        </button>
+      </div>
+    </div>
+
+    <div id="logContent">
+      <div class="empty-state">
+        <div class="empty-state-icon">&#128336;</div>
+        <p>Geen sessies gevonden voor deze maand.</p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app-wrapper -->
+
+<script>
+'use strict';
+
+/* =====================================================
+   CONFIG
+   ===================================================== */
+const CONFIG = {
+  // Multi-user opstelling: één gedeelde Google Sheet + Apps Script endpoint.
+  adapter: 'googlesheets', // 'localstorage' | 'googlesheets' | later 'supabase'
+
+  googleSheets: {
+    // ⬇️ DEPLOY: plak hier ÉÉN keer de gedeelde Apps Script Web App URL (eindigt op /exec).
+    //    Iedereen die de gehoste app opent gebruikt automatisch dit endpoint,
+    //    en hoeft zelf niets in te stellen behalve zijn UHasselt-e-mail.
+    endpointUrl: 'https://script.google.com/macros/s/AKfycbzevXxcSexVfVg1wUCOfvSwOK7_LRJMVFGZ0nTJBEJLy7n3A9BO6W4_dx_zXHZf-749pA/exec',
+    spreadsheetId: ''
+  },
+  supabase: { url: '', anonKey: '' } // TODO: later
+};
+
+// Huidige gebruiker (afgeleid van UHasselt-e-mail). userId = deel vóór de @.
+// TODO: Auth — vervang dit door echte Supabase-auth bij een latere uitbreiding.
+const USER = { email: null, userId: null, displayName: null };
+
+const STORAGE_KEYS = {
+  config:   'urentracker_config',
+  theme:    'urentracker_theme',
+  identity: 'urentracker_identity',
+  // Per-gebruiker genaamruimd, zodat data van verschillende personen op
+  // hetzelfde toestel niet door elkaar loopt.
+  get log()     { return 'urentracker_log_'     + (USER.userId || 'anon'); },
+  get active()  { return 'urentracker_active_'  + (USER.userId || 'anon'); },
+  get pending() { return 'urentracker_pending_' + (USER.userId || 'anon'); },
+};
+
+/* =====================================================
+   HELPERS
+   ===================================================== */
+const NL_DAYS   = ['zo','ma','di','wo','do','vr','za'];
+const NL_MONTHS_SHORT = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+const NL_MONTHS_FULL  = ['Januari','Februari','Maart','April','Mei','Juni',
+                          'Juli','Augustus','September','Oktober','November','December'];
+const NL_DAYS_FULL    = ['zondag','maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag'];
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+// Escape HTML zodat een werk-omschrijving veilig in de tabel kan (geen injectie)
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function toHHMM(date) {
+  return pad2(date.getHours()) + ':' + pad2(date.getMinutes());
+}
+
+function toDateKey(date) {
+  return `${pad2(date.getDate())}/${pad2(date.getMonth()+1)}/${date.getFullYear()}`;
+}
+
+function parseDateKey(key) {
+  const [d,m,y] = key.split('/').map(Number);
+  return new Date(y, m-1, d);
+}
+
+function decimalHours(ms) {
+  return Math.round((ms / 3600000) * 100) / 100;
+}
+
+function formatDuration(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
+}
+
+function getNlMonthLabel(year, month) {
+  return `${NL_MONTHS_FULL[month]} ${year}`;
+}
+
+function getWeekStart(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=zo
+  const diff = (day === 0) ? -6 : 1 - day; // maandag als weekstart
+  d.setDate(d.getDate() + diff);
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+/* =====================================================
+   ADAPTERS
+   ===================================================== */
+
+// --- Base (interface documentation) ---
+class BaseAdapter {
+  async saveSession(sessionData) { throw new Error('Not implemented'); }
+  async loadLog()                { throw new Error('Not implemented'); }
+  getAdapter()                   { throw new Error('Not implemented'); }
+}
+
+// --- LocalStorageAdapter ---
+class LocalStorageAdapter extends BaseAdapter {
+  getAdapter() { return 'localstorage'; }
+
+  async loadLog() {
+    const raw = localStorage.getItem(STORAGE_KEYS.log);
+    return raw ? JSON.parse(raw) : [];
+  }
+
+  async saveSession(sessionData) {
+    const log = await this.loadLog();
+    log.push(sessionData);
+    localStorage.setItem(STORAGE_KEYS.log, JSON.stringify(log));
+    return { success: true };
+  }
+}
+
+// --- GoogleSheetsAdapter ---
+class GoogleSheetsAdapter extends BaseAdapter {
+  getAdapter() { return 'googlesheets'; }
+
+  async loadLog() {
+    // localStorage is altijd de bron van waarheid voor de UI
+    const raw = localStorage.getItem(STORAGE_KEYS.log);
+    return raw ? JSON.parse(raw) : [];
+  }
+
+  async saveSession(sessionData) {
+    const url = CONFIG.googleSheets.endpointUrl;
+    if (!url || url.indexOf('PLAK_HIER') === 0) {
+      throw new Error('Geen endpoint URL geconfigureerd.');
+    }
+
+    // De spreadsheet wordt centraal bepaald via de Script Property SPREADSHEET_ID
+    // in het Apps Script — niet meegestuurd vanuit de app.
+    const payload = sessionData;
+
+    // BELANGRIJK: geen Content-Type: application/json header — Apps Script vereist geen preflight
+    // Apps Script leest e.postData.contents als plain text
+    const resp = await fetch(url, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      // Geen headers → default text/plain → geen preflight CORS issue
+    });
+
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error || 'Onbekende fout van Apps Script');
+    return data;
+  }
+}
+
+// TODO: SupabaseAdapter — implementeer saveSession() hier
+// class SupabaseAdapter extends BaseAdapter {
+//   getAdapter() { return 'supabase'; }
+//   async loadLog() { ... }
+//   async saveSession(sessionData) { ... }
+// }
+
+// TODO: GitHub Pages deploy — verwijder CONFIG hardcoding, gebruik env vars
+// TODO: Multi-user — voeg user_id toe aan sessionData
+// TODO: Auth — voeg login flow toe voor Supabase auth
+
+function getActiveAdapter() {
+  if (CONFIG.adapter === 'googlesheets') return new GoogleSheetsAdapter();
+  return new LocalStorageAdapter();
+}
+
+/* =====================================================
+   IDENTITEIT (UHasselt-e-mail)
+   ===================================================== */
+
+// Leidt {email, userId, displayName} af uit een UHasselt-e-mailadres.
+// Geeft null terug als het adres niet geldig is.
+function deriveIdentity(rawEmail) {
+  const email = String(rawEmail || '').trim().toLowerCase();
+  // Accepteer student- én personeels-adressen van UHasselt.
+  const match = email.match(/^([a-z0-9._%+-]+)@(student\.)?uhasselt\.be$/);
+  if (!match) return null;
+
+  const userId = match[1]; // deel vóór de @, bv. "emile.meertens" — uniek binnen UHasselt
+  // Maak een nette weergavenaam: "emile.meertens" → "Emile Meertens"
+  const displayName = userId
+    .split(/[._]/)
+    .filter(Boolean)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+
+  return { email, userId, displayName };
+}
+
+function loadIdentity() {
+  const raw = localStorage.getItem(STORAGE_KEYS.identity);
+  if (!raw) return false;
+  try {
+    const saved = JSON.parse(raw);
+    if (saved && saved.userId) {
+      USER.email = saved.email;
+      USER.userId = saved.userId;
+      USER.displayName = saved.displayName || saved.userId;
+      return true;
+    }
+  } catch(e) { /* corrupt → opnieuw vragen */ }
+  return false;
+}
+
+function saveIdentity(identity) {
+  USER.email = identity.email;
+  USER.userId = identity.userId;
+  USER.displayName = identity.displayName;
+  localStorage.setItem(STORAGE_KEYS.identity, JSON.stringify(identity));
+  renderIdentity();
+}
+
+// Toont de naam in de header
+function renderIdentity() {
+  const el = document.getElementById('userBadge');
+  if (el) el.textContent = USER.displayName || '—';
+}
+
+// Opent het onboarding-scherm (blokkeert de app tot er een geldige naam is)
+function showOnboarding(prefill) {
+  const input = document.getElementById('onboardEmail');
+  input.value = prefill || USER.email || '';
+  document.getElementById('onboardError').style.display = 'none';
+  document.getElementById('onboardPreview').style.display = 'none';
+  document.getElementById('onboardModal').classList.add('open');
+  setTimeout(() => input.focus(), 50);
+  onboardPreviewUpdate();
+}
+
+// Live preview van de afgeleide naam terwijl je typt
+function onboardPreviewUpdate() {
+  const val = document.getElementById('onboardEmail').value;
+  const id = deriveIdentity(val);
+  const prev = document.getElementById('onboardPreview');
+  const err = document.getElementById('onboardError');
+  err.style.display = 'none';
+  if (id) {
+    prev.textContent = `Je meldt je aan als: ${id.displayName} (${id.userId})`;
+    prev.style.display = 'block';
+  } else {
+    prev.style.display = 'none';
+  }
+}
+
+// Verwerkt de aanmelding
+function submitOnboarding() {
+  const val = document.getElementById('onboardEmail').value;
+  const id = deriveIdentity(val);
+  if (!id) {
+    const err = document.getElementById('onboardError');
+    err.textContent = 'Voer een geldig UHasselt-adres in (…@student.uhasselt.be).';
+    err.style.display = 'block';
+    return;
+  }
+  saveIdentity(id);
+  document.getElementById('onboardModal').classList.remove('open');
+  // (Her)laad de UI voor deze gebruiker
+  refreshForUser();
+  showToast(`Aangemeld als ${id.displayName}`, 'success');
+}
+
+// Laat de gebruiker zijn naam wijzigen (bv. verkeerd adres ingetikt)
+function changeIdentity() {
+  showOnboarding(USER.email);
+}
+
+// Herlaadt alle per-gebruiker UI (na aanmelden of naam wijzigen)
+async function refreshForUser() {
+  // Klokstatus herstellen
+  const active = getActiveSession();
+  if (active) {
+    const start = new Date(active.startTime);
+    updateClockUI(true, start);
+    startTimer(start);
+  } else {
+    stopTimer();
+    updateClockUI(false);
+  }
+  // Direct lokale data tonen (snel, werkt offline)
+  updateStats();
+  renderLog();
+  updatePendingCount();
+  // Daarna cross-device historie uit de Sheet ophalen (best-effort)
+  await syncFromSheet();
+}
+
+/* =====================================================
+   CROSS-DEVICE SYNC — historie uit de Sheet ophalen
+   ===================================================== */
+
+// Haalt alle sessies van de huidige gebruiker uit de Sheet en voegt ze samen
+// met de lokale log. De Sheet is autoritatief; lokale (nog niet verzonden)
+// sessies blijven behouden. Faalt stil bij geen internet.
+async function syncFromSheet() {
+  if (CONFIG.adapter !== 'googlesheets') return;
+  const url = CONFIG.googleSheets.endpointUrl;
+  if (!url || url.indexOf('PLAK_HIER') === 0 || !USER.userId) return;
+
+  try {
+    const resp = await fetch(
+      `${url}?action=log&userId=${encodeURIComponent(USER.userId)}`,
+      { method: 'GET', redirect: 'follow' }
+    );
+    if (!resp.ok && resp.status !== 200) return;
+    const data = await resp.json();
+    if (!data || !data.success || !Array.isArray(data.sessions)) return;
+
+    const changed = mergeSheetLog(data.sessions);
+    if (changed) {
+      updateStats();
+      renderLog();
+    }
+  } catch (e) {
+    // Offline of endpoint onbereikbaar → lokale data blijft gewoon staan
+  }
+}
+
+// Voegt sessies uit de Sheet samen met de lokale log (op sleutel datum|sessie).
+// Geeft true terug als de lokale log gewijzigd is.
+function mergeSheetLog(sheetSessions) {
+  const local = JSON.parse(localStorage.getItem(STORAGE_KEYS.log) || '[]');
+  const keyOf = s => `${s.date}|${s.session}`;
+  const byKey = {};
+
+  // Sheet is autoritatief voor zijn eigen sleutels
+  sheetSessions.forEach(s => { byKey[keyOf(s)] = s; });
+  // Lokale entries die (nog) niet in de Sheet staan behouden (bv. pending)
+  local.forEach(s => { const k = keyOf(s); if (!(k in byKey)) byKey[k] = s; });
+
+  const merged = Object.keys(byKey).map(k => byKey[k]);
+  merged.sort((a, b) => {
+    const diff = parseDateKey(a.date) - parseDateKey(b.date);
+    if (diff !== 0) return diff;
+    return (a.session || 0) - (b.session || 0);
+  });
+
+  const before = JSON.stringify(local);
+  const after  = JSON.stringify(merged);
+  if (before === after) return false;
+  localStorage.setItem(STORAGE_KEYS.log, JSON.stringify(merged));
+  return true;
+}
+
+/* =====================================================
+   CONFIG PERSISTENCE
+   ===================================================== */
+function loadConfig() {
+  const raw = localStorage.getItem(STORAGE_KEYS.config);
+  if (raw) {
+    try {
+      const saved = JSON.parse(raw);
+      // Merge opgeslagen config over defaults
+      if (saved.adapter)       CONFIG.adapter = saved.adapter;
+      if (saved.googleSheets)  Object.assign(CONFIG.googleSheets, saved.googleSheets);
+      if (saved.supabase)      Object.assign(CONFIG.supabase, saved.supabase);
+    } catch(e) { /* ignore corrupt */ }
+  }
+}
+
+function persistConfig() {
+  localStorage.setItem(STORAGE_KEYS.config, JSON.stringify({
+    adapter:      CONFIG.adapter,
+    googleSheets: CONFIG.googleSheets,
+    supabase:     CONFIG.supabase,
+  }));
+}
+
+/* =====================================================
+   PENDING QUEUE
+   ===================================================== */
+function getPending() {
+  const raw = localStorage.getItem(STORAGE_KEYS.pending);
+  return raw ? JSON.parse(raw) : [];
+}
+
+function setPending(arr) {
+  localStorage.setItem(STORAGE_KEYS.pending, JSON.stringify(arr));
+}
+
+function addToPending(sessionData) {
+  const q = getPending();
+  q.push(sessionData);
+  setPending(q);
+}
+
+async function flushPendingQueue() {
+  const q = getPending();
+  if (q.length === 0) {
+    showToast('Geen wachtende sessies.', 'success');
+    return;
+  }
+
+  if (CONFIG.adapter !== 'googlesheets' || !CONFIG.googleSheets.endpointUrl) {
+    showToast('Configureer eerst een Google Sheets endpoint.', 'warning');
+    return;
+  }
+
+  const adapter = new GoogleSheetsAdapter();
+  let failed = [];
+  let sent = 0;
+
+  for (const s of q) {
+    try {
+      await adapter.saveSession(s);
+      sent++;
+    } catch(e) {
+      failed.push(s);
+    }
+  }
+
+  setPending(failed);
+  updatePendingCount();
+
+  if (failed.length === 0) {
+    showToast(`${sent} sessie(s) verstuurd naar Google Sheets.`, 'success');
+  } else {
+    showToast(`${sent} verstuurd, ${failed.length} mislukt.`, 'warning');
+  }
+}
+
+function updatePendingCount() {
+  const el = document.getElementById('pendingCount');
+  if (!el) return;
+  const n = getPending().length;
+  el.textContent = n;
+  el.className = 'pending-count' + (n === 0 ? ' zero' : '');
+}
+
+/* =====================================================
+   ACTIVE SESSION
+   ===================================================== */
+function getActiveSession() {
+  const raw = localStorage.getItem(STORAGE_KEYS.active);
+  return raw ? JSON.parse(raw) : null;
+}
+
+function setActiveSession(data) {
+  localStorage.setItem(STORAGE_KEYS.active, JSON.stringify(data));
+}
+
+function clearActiveSession() {
+  localStorage.removeItem(STORAGE_KEYS.active);
+}
+
+/* =====================================================
+   KLOKKEN LOGICA
+   ===================================================== */
+let timerInterval = null;
+
+async function toggleClock() {
+  const active = getActiveSession();
+  if (!active) {
+    await clockIn();
+  } else {
+    await clockOut(active);
+  }
+}
+
+async function clockIn() {
+  const now = new Date();
+  setActiveSession({ startTime: now.toISOString() });
+  startTimer(now);
+  updateClockUI(true, now);
+  updateStats();
+  showToast(`Ingeklokt om ${toHHMM(now)}`, 'success');
+}
+
+async function clockOut(active) {
+  const start  = new Date(active.startTime);
+  const end    = new Date();
+  const durationMs = end - start;
+
+  if (durationMs < 60000) {
+    showToast('Sessie is korter dan 1 minuut — toch opgeslagen.', 'warning');
+  }
+
+  // Vraag de werk-omschrijving via pop-up vóór we afronden
+  const note = await askWorkDescription();
+
+  clearActiveSession();
+  stopTimer();
+
+  // Bouw payload
+  const dateKey    = toDateKey(start);
+  const dateObj    = parseDateKey(dateKey);
+  const dayAbbr    = NL_DAYS[dateObj.getDay()];
+  const monthLabel = getNlMonthLabel(dateObj.getFullYear(), dateObj.getMonth());
+  const duration   = decimalHours(durationMs);
+
+  // Bereken session# en dagTotaal
+  const lsAdapter = new LocalStorageAdapter();
+  const log = await lsAdapter.loadLog();
+  const dayLog = log.filter(s => s.date === dateKey);
+  const sessionNum = dayLog.length + 1;
+  const prevTotal  = dayLog.reduce((a, s) => a + (s.duration || 0), 0);
+  const dayTotal   = Math.round((prevTotal + duration) * 100) / 100;
+
+  const sessionData = {
+    userId:    USER.userId,       // bepaalt het tabblad in de gedeelde Sheet
+    email:     USER.email,
+    date:      dateKey,
+    day:       dayAbbr,
+    session:   sessionNum,
+    clockIn:   toHHMM(start),
+    clockOut:  toHHMM(end),
+    duration:  duration,
+    dayTotal:  dayTotal,
+    month:     monthLabel,
+    note:      note,
+  };
+
+  // Altijd lokaal opslaan
+  await lsAdapter.saveSession(sessionData);
+
+  // Optioneel naar Sheets
+  if (CONFIG.adapter === 'googlesheets') {
+    const sheetsAdapter = new GoogleSheetsAdapter();
+    try {
+      await sheetsAdapter.saveSession(sessionData);
+      showToast(`Uitklokt ${toHHMM(start)}–${toHHMM(end)} (${duration.toFixed(2)} u) · Sheets ✓`, 'success');
+      // Flush eventuele pending na succesvolle write
+      const q = getPending();
+      if (q.length > 0) flushPendingQueue();
+    } catch(e) {
+      addToPending(sessionData);
+      showToast(`Sessie lokaal opgeslagen. Sheets mislukt: ${e.message}`, 'warning');
+      updatePendingCount();
+    }
+  } else {
+    showToast(`Uitklokt ${toHHMM(start)}–${toHHMM(end)} (${duration.toFixed(2)} u)`, 'success');
+  }
+
+  updateClockUI(false);
+  updateStats();
+  renderLog();
+}
+
+/* =====================================================
+   TIMER UI
+   ===================================================== */
+function startTimer(startTime) {
+  stopTimer();
+  timerInterval = setInterval(() => {
+    const elapsed = Date.now() - startTime.getTime();
+    document.getElementById('sessionTimer').textContent = formatDuration(elapsed);
+    updateLiveDayTotal(startTime);
+  }, 1000);
+  document.getElementById('sessionTimer').textContent = '00:00:00';
+}
+
+function stopTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+function updateLiveDayTotal(startTime) {
+  const lsAdapter = new LocalStorageAdapter();
+  const raw = localStorage.getItem(STORAGE_KEYS.log);
+  const log = raw ? JSON.parse(raw) : [];
+  const dateKey = toDateKey(startTime);
+  const dayLog = log.filter(s => s.date === dateKey);
+  const prev = dayLog.reduce((a, s) => a + (s.duration || 0), 0);
+  const currentMs = Date.now() - startTime.getTime();
+  const total = prev + decimalHours(currentMs);
+  const el = document.getElementById('dayTotalLiveValue');
+  if (el) el.textContent = total.toFixed(2);
+
+  // Bijwerken "Vandaag" stat ook
+  document.getElementById('statToday').textContent = total.toFixed(2);
+}
+
+function updateClockUI(isActive, startTime) {
+  const btn    = document.getElementById('clockBtn');
+  const badge  = document.getElementById('statusBadge');
+  const text   = document.getElementById('statusText');
+  const info   = document.getElementById('clockinInfo');
+  const dTime  = document.getElementById('clockinTimeDisplay');
+  const dayLive = document.getElementById('dayTotalLive');
+  const timerLbl = document.getElementById('sessionTimerLabel');
+
+  if (isActive) {
+    btn.textContent = 'Uitklokken';
+    btn.className = 'clock-btn clock-out';
+    badge.classList.add('active');
+    text.textContent = 'Ingeklokt';
+    info.style.display = 'flex';
+    if (startTime) dTime.textContent = toHHMM(startTime);
+    dayLive.style.display = 'flex';
+    timerLbl.textContent = 'Lopende sessie';
+  } else {
+    btn.textContent = 'Inklokken';
+    btn.className = 'clock-btn clock-in';
+    badge.classList.remove('active');
+    text.textContent = 'Uitgeklokt';
+    info.style.display = 'none';
+    dayLive.style.display = 'none';
+    document.getElementById('sessionTimer').textContent = '--:--:--';
+    timerLbl.textContent = 'Huidige sessie';
+  }
+}
+
+/* =====================================================
+   LIVE KLOK
+   ===================================================== */
+function startLiveClock() {
+  function tick() {
+    const now = new Date();
+    const clockEl = document.getElementById('liveClock');
+    const dateEl  = document.getElementById('liveDate');
+    if (clockEl) clockEl.textContent = `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+    if (dateEl) {
+      const day  = NL_DAYS_FULL[now.getDay()];
+      const d    = now.getDate();
+      const mon  = NL_MONTHS_FULL[now.getMonth()].toLowerCase();
+      const y    = now.getFullYear();
+      dateEl.textContent = `${day} ${d} ${mon} ${y}`;
+    }
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+/* =====================================================
+   STATS
+   ===================================================== */
+async function updateStats() {
+  const lsAdapter = new LocalStorageAdapter();
+  const log = await lsAdapter.loadLog();
+
+  const now   = new Date();
+  const today = toDateKey(now);
+  const weekStart = getWeekStart(now);
+
+  let todayTotal = 0, weekTotal = 0, monthTotal = 0;
+  const monthDaySet = new Set(); // unieke gewerkte dagen deze maand
+
+  for (const s of log) {
+    const d = parseDateKey(s.date);
+    const isToday  = s.date === today;
+    const isThisWk = d >= weekStart && d <= now;
+    const isThisMo = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+
+    if (isToday)  todayTotal += s.duration;
+    if (isThisWk) weekTotal  += s.duration;
+    if (isThisMo) {
+      monthTotal += s.duration;
+      monthDaySet.add(s.date);
+    }
+  }
+
+  const workedDaysThisMonth = monthDaySet.size;
+  const avgPerDay = workedDaysThisMonth > 0 ? monthTotal / workedDaysThisMonth : 0;
+
+  document.getElementById('statToday').textContent  = todayTotal.toFixed(2);
+  document.getElementById('statWeek').textContent   = weekTotal.toFixed(2);
+  document.getElementById('statMonth').textContent  = monthTotal.toFixed(2);
+  document.getElementById('statAvg').textContent    = avgPerDay.toFixed(2);
+}
+
+/* =====================================================
+   LOG RENDER
+   ===================================================== */
+let currentLogYear  = new Date().getFullYear();
+let currentLogMonth = new Date().getMonth();
+
+function prevMonth() {
+  currentLogMonth--;
+  if (currentLogMonth < 0) { currentLogMonth = 11; currentLogYear--; }
+  renderLog();
+}
+
+function nextMonth() {
+  currentLogMonth++;
+  if (currentLogMonth > 11) { currentLogMonth = 0; currentLogYear++; }
+  renderLog();
+}
+
+async function renderLog() {
+  document.getElementById('monthLabel').textContent =
+    getNlMonthLabel(currentLogYear, currentLogMonth);
+
+  const lsAdapter = new LocalStorageAdapter();
+  const log = await lsAdapter.loadLog();
+
+  // Filter op huidig geselecteerde maand
+  const filtered = log.filter(s => {
+    const d = parseDateKey(s.date);
+    return d.getMonth() === currentLogMonth && d.getFullYear() === currentLogYear;
+  });
+
+  if (filtered.length === 0) {
+    document.getElementById('logContent').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">&#128336;</div>
+        <p>Geen sessies gevonden voor deze maand.</p>
+      </div>`;
+    return;
+  }
+
+  // Groepeer per dag
+  const dayMap = {};
+  for (const s of filtered) {
+    if (!dayMap[s.date]) dayMap[s.date] = [];
+    dayMap[s.date].push(s);
+  }
+
+  // Sorteer dagen
+  const sortedDays = Object.keys(dayMap).sort((a, b) => {
+    return parseDateKey(b) - parseDateKey(a); // nieuwste eerst
+  });
+
+  let html = `
+    <table class="log-table" role="table">
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th>Dag</th>
+          <th>Sessies</th>
+          <th>Totaal</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="logBody">`;
+
+  for (const dateKey of sortedDays) {
+    const sessions = dayMap[dateKey];
+    const dayDate  = parseDateKey(dateKey);
+    const dayLabel = NL_DAYS_FULL[dayDate.getDay()];
+    const dayAbbr  = NL_DAYS[dayDate.getDay()];
+    const [dd,mm,yyyy] = dateKey.split('/');
+    const displayDate = `${dd}/${mm}/${yyyy}`;
+    const total = sessions.reduce((a, s) => a + (s.duration || 0), 0);
+    const rowId = `day-${dateKey.replace(/\//g,'_')}`;
+
+    html += `
+      <tr class="day-row" onclick="toggleDayExpand('${rowId}')" role="row" tabindex="0"
+          onkeydown="if(event.key==='Enter')toggleDayExpand('${rowId}')">
+        <td>${displayDate}</td>
+        <td style="color:var(--text-muted);font-size:12px;">${dayLabel}</td>
+        <td style="color:var(--text-muted);">${sessions.length}</td>
+        <td><span class="day-total-badge">${total.toFixed(2)} u</span></td>
+        <td><span class="expand-icon" id="icon-${rowId}">&#9658;</span></td>
+      </tr>`;
+
+    for (let i = 0; i < sessions.length; i++) {
+      const s = sessions[i];
+      html += `
+        <tr class="session-row" id="${rowId}-s${i}">
+          <td colspan="2">
+            <span class="session-chip">&#9673; Sessie ${s.session ?? (i+1)}</span>
+          </td>
+          <td>${s.clockIn} – ${s.clockOut}</td>
+          <td>${s.duration?.toFixed(2)} u</td>
+          <td class="session-note" title="${escapeHtml(s.note || '')}">${escapeHtml(s.note || '')}</td>
+        </tr>`;
+    }
+  }
+
+  html += `</tbody></table>`;
+  document.getElementById('logContent').innerHTML = html;
+}
+
+function toggleDayExpand(rowId) {
+  const icon = document.getElementById(`icon-${rowId}`);
+  if (!icon) return;
+  const isOpen = icon.classList.contains('open');
+  icon.classList.toggle('open', !isOpen);
+
+  // Toon/verberg alle sessie-rijen voor deze dag
+  let i = 0;
+  while (true) {
+    const el = document.getElementById(`${rowId}-s${i}`);
+    if (!el) break;
+    el.classList.toggle('open', !isOpen);
+    i++;
+  }
+}
+
+/* =====================================================
+   EXCEL EXPORT
+   ===================================================== */
+async function exportExcel() {
+  if (typeof XLSX === 'undefined') {
+    showToast('SheetJS library niet geladen. Controleer uw internetverbinding.', 'error');
+    return;
+  }
+
+  const lsAdapter = new LocalStorageAdapter();
+  const log = await lsAdapter.loadLog();
+
+  if (log.length === 0) {
+    showToast('Geen sessies om te exporteren.', 'warning');
+    return;
+  }
+
+  const rows = [
+    ['Datum', 'Dag', 'Sessie', 'Inklokken', 'Uitklokken', 'Duur (u)', 'Dagtotaal (u)', 'Maand', 'Werk']
+  ];
+
+  for (const s of log) {
+    rows.push([
+      s.date, s.day, s.session, s.clockIn, s.clockOut,
+      s.duration, s.dayTotal, s.month, s.note || ''
+    ]);
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Kolombreedte
+  ws['!cols'] = [
+    {wch:12},{wch:10},{wch:8},{wch:12},{wch:12},{wch:12},{wch:15},{wch:16},{wch:40}
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Sessies');
+
+  const now = new Date();
+  const fname = `uren-${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  showToast('Excel bestand gedownload.', 'success');
+}
+
+/* =====================================================
+   WERK-OMSCHRIJVING MODAL (bij uitklokken)
+   ===================================================== */
+let _workResolver = null;
+
+// Geeft een Promise terug die resolved met de ingevoerde omschrijving (string).
+function askWorkDescription() {
+  return new Promise((resolve) => {
+    _workResolver = resolve;
+    const input = document.getElementById('workInput');
+    input.value = '';
+    document.getElementById('workModal').classList.add('open');
+    // Focus na de render-tick
+    setTimeout(() => input.focus(), 50);
+  });
+}
+
+// Sluit de modal en lost de Promise op met de gegeven waarde.
+function resolveWork(value) {
+  document.getElementById('workModal').classList.remove('open');
+  if (_workResolver) {
+    const r = _workResolver;
+    _workResolver = null;
+    r(value);
+  }
+}
+
+/* =====================================================
+   SETTINGS MODAL
+   ===================================================== */
+function openSettings() {
+  // Vul velden in vanuit huidige config
+  document.getElementById('adapterSelect').value = CONFIG.adapter;
+  document.getElementById('endpointInput').value = CONFIG.googleSheets.endpointUrl || '';
+  updatePendingCount();
+  toggleSheetSection(CONFIG.adapter);
+  document.getElementById('settingsModal').classList.add('open');
+  updateThemeButtons();
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('open');
+}
+
+function saveSettings() {
+  CONFIG.adapter = document.getElementById('adapterSelect').value;
+  CONFIG.googleSheets.endpointUrl  = document.getElementById('endpointInput').value.trim();
+  persistConfig();
+  closeSettings();
+  showToast('Instellingen opgeslagen.', 'success');
+  updateStats();
+}
+
+function onAdapterChange(val) {
+  toggleSheetSection(val);
+}
+
+function toggleSheetSection(val) {
+  document.getElementById('sheetsSection').style.display =
+    val === 'googlesheets' ? 'block' : 'none';
+}
+
+async function testConnection() {
+  const url = document.getElementById('endpointInput').value.trim();
+  const resultEl = document.getElementById('testResult');
+  resultEl.className = 'test-result show';
+  resultEl.textContent = 'Bezig met testen…';
+
+  if (!url) {
+    resultEl.className = 'test-result show fail';
+    resultEl.textContent = 'Voer eerst een endpoint URL in.';
+    return;
+  }
+
+  try {
+    // GET health check — het script controleert via de centrale Script Property
+    // SPREADSHEET_ID of de sheet écht geopend kan worden (niet enkel het endpoint).
+    const resp = await fetch(url, { method: 'GET', redirect: 'follow' });
+
+    if (!resp.ok && resp.status !== 200) {
+      resultEl.className = 'test-result show fail';
+      resultEl.textContent = `HTTP ${resp.status} — controleer de URL en deploy-instellingen.`;
+      return;
+    }
+
+    let data = {};
+    try { data = await resp.json(); } catch(_) { /* oude code zonder JSON-sheetcheck */ }
+
+    if (data.sheetOk === false) {
+      // Endpoint leeft, maar de sheet kan niet geopend worden
+      resultEl.className = 'test-result show fail';
+      resultEl.textContent = `Endpoint OK, maar sheet niet bereikbaar: ${data.warning || 'onbekende fout'}`;
+    } else if (data.sheetOk === true) {
+      resultEl.className = 'test-result show ok';
+      resultEl.textContent = `Verbinding OK · Sheet "${data.spreadsheet}" bereikbaar ✓`;
+      await flushPendingQueue();
+    } else {
+      // Oude script-versie zonder sheetcheck → alleen endpoint bevestigd
+      resultEl.className = 'test-result show ok';
+      resultEl.textContent = `Endpoint bereikbaar (HTTP ${resp.status}). Let op: deploy de nieuwste Code.gs voor de sheet-check.`;
+      await flushPendingQueue();
+    }
+  } catch(e) {
+    resultEl.className = 'test-result show fail';
+    resultEl.textContent = `Fout: ${e.message}`;
+  }
+}
+
+/* =====================================================
+   THEMA
+   ===================================================== */
+function loadTheme() {
+  const saved = localStorage.getItem(STORAGE_KEYS.theme) || 'dark';
+  applyTheme(saved);
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem(STORAGE_KEYS.theme, theme);
+  const btn = document.getElementById('themeToggle');
+  if (btn) btn.textContent = theme === 'dark' ? '☀' : '🌙';
+  updateThemeButtons();
+}
+
+function setTheme(theme) {
+  applyTheme(theme);
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+function updateThemeButtons() {
+  const current = document.documentElement.getAttribute('data-theme');
+  ['dark','light'].forEach(t => {
+    const btn = document.getElementById(`themeBtn-${t}`);
+    if (!btn) return;
+    btn.style.background    = current === t ? 'var(--accent)' : '';
+    btn.style.color         = current === t ? 'var(--accent-text)' : '';
+    btn.style.borderColor   = current === t ? 'transparent' : '';
+  });
+}
+
+/* =====================================================
+   TOAST NOTIFICATIES
+   ===================================================== */
+function showToast(message, type = 'success') {
+  const icons = { success: '✓', warning: '⚠', error: '✕', info: 'ℹ' };
+  const container = document.getElementById('toastContainer');
+
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span class="toast-icon">${icons[type] || '●'}</span><span>${message}</span>`;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(20px)';
+    setTimeout(() => toast.remove(), 400);
+  }, 4000);
+}
+
+/* =====================================================
+   DATA WISSEN
+   ===================================================== */
+function clearAllData() {
+  if (!confirm('Weet je zeker dat je ALLE lokale data wilt wissen? Dit kan niet ongedaan worden gemaakt.')) return;
+  [STORAGE_KEYS.log, STORAGE_KEYS.active, STORAGE_KEYS.pending].forEach(k => localStorage.removeItem(k));
+  clearActiveSession();
+  stopTimer();
+  updateClockUI(false);
+  updateStats();
+  renderLog();
+  showToast('Alle data gewist.', 'warning');
+  closeSettings();
+}
+
+/* =====================================================
+   INIT
+   ===================================================== */
+function init() {
+  loadConfig();
+  loadTheme();
+  startLiveClock();
+
+  // Initiële maandlabel (niet gebruiker-afhankelijk)
+  document.getElementById('monthLabel').textContent =
+    getNlMonthLabel(currentLogYear, currentLogMonth);
+
+  // --- Event listeners ---
+  // Sluit settings-modal bij klikken buiten
+  document.getElementById('settingsModal').addEventListener('click', function(e) {
+    if (e.target === this) closeSettings();
+  });
+
+  // ESC sluit settings-modal
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeSettings();
+  });
+
+  // Werk-omschrijving modal: opslaan-knop + Enter-toets
+  document.getElementById('workSaveBtn').addEventListener('click', function() {
+    resolveWork(document.getElementById('workInput').value.trim());
+  });
+  document.getElementById('workInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      resolveWork(this.value.trim());
+    }
+  });
+
+  // Onboarding: knop, Enter-toets en live preview
+  document.getElementById('onboardBtn').addEventListener('click', submitOnboarding);
+  document.getElementById('onboardEmail').addEventListener('input', onboardPreviewUpdate);
+  document.getElementById('onboardEmail').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); submitOnboarding(); }
+  });
+
+  // --- Identiteit: bepaalt welke per-gebruiker data we laden ---
+  if (loadIdentity()) {
+    renderIdentity();
+    refreshForUser();
+  } else {
+    // Nog geen naam bekend → blokkeer met onboarding tot er een geldig adres is
+    showOnboarding();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
