@@ -520,6 +520,21 @@
       background: var(--teal-400);
     }
 
+    .time-picker {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .time-picker .form-select {
+      flex: 1;
+      min-width: 0;
+      text-align: center;
+      padding: 10px 6px;
+      font-size: 16px;
+      font-variant-numeric: tabular-nums;
+    }
+    .time-colon { font-size: 18px; font-weight: 700; color: var(--text-muted); }
+
     /* ===== LOG TABLE ===== */
     .log-table {
       width: 100%;
@@ -1110,14 +1125,22 @@
         <label class="form-label" for="sfDate">Datum</label>
         <input class="form-input" type="date" id="sfDate" />
       </div>
-      <div style="display:flex;gap:12px;">
-        <div class="form-group" style="flex:1;">
-          <label class="form-label" for="sfStart">Inkloktijd</label>
-          <input class="form-input" type="time" id="sfStart" />
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div class="form-group" style="flex:1;min-width:140px;">
+          <label class="form-label">Inkloktijd</label>
+          <div class="time-picker">
+            <select class="form-select" id="sfStartH" aria-label="Inklok uur"></select>
+            <span class="time-colon">:</span>
+            <select class="form-select" id="sfStartM" aria-label="Inklok minuut"></select>
+          </div>
         </div>
-        <div class="form-group" style="flex:1;">
-          <label class="form-label" for="sfEnd">Uitkloktijd</label>
-          <input class="form-input" type="time" id="sfEnd" />
+        <div class="form-group" style="flex:1;min-width:140px;">
+          <label class="form-label">Uitkloktijd</label>
+          <div class="time-picker">
+            <select class="form-select" id="sfEndH" aria-label="Uitklok uur"></select>
+            <span class="time-colon">:</span>
+            <select class="form-select" id="sfEndM" aria-label="Uitklok minuut"></select>
+          </div>
         </div>
       </div>
       <div class="form-group" style="margin-bottom:0;">
@@ -1236,11 +1259,8 @@
         </div>
       </div>
       <div class="log-actions">
-        <button class="btn-sm" onclick="openAddSession()" title="Sessie handmatig toevoegen">
-          &#43; Sessie
-        </button>
-        <button class="btn-sm accent" onclick="exportExcel()" title="Exporteer naar Excel">
-          &#8595; Excel
+        <button class="btn-sm accent" onclick="openAddSession()" title="Sessie handmatig toevoegen">
+          &#43; Sessie toevoegen
         </button>
       </div>
     </div>
@@ -1978,15 +1998,44 @@ function isoToDateKey(iso) { const p = iso.split('-'); return `${p[2]}/${p[1]}/$
 function dateKeyToIso(dk)  { const p = dk.split('/');  return `${p[2]}-${p[1]}-${p[0]}`; }
 function timeToMinutes(t)  { const p = String(t).split(':'); return (+p[0]) * 60 + (+p[1]); }
 
+// Vult de uur- (00-23) en minuut- (00-59) keuzemenu's eenmalig
+function populateTimeSelects() {
+  [['sfStartH', 24], ['sfEndH', 24], ['sfStartM', 60], ['sfEndM', 60]].forEach(([id, n]) => {
+    const el = document.getElementById(id);
+    el.innerHTML = '';
+    for (let i = 0; i < n; i++) {
+      const o = document.createElement('option');
+      o.value = pad2(i); o.textContent = pad2(i);
+      el.appendChild(o);
+    }
+  });
+}
+
+function setTimeSelects(hId, mId, hhmm) {
+  const p = String(hhmm || '').split(':');
+  document.getElementById(hId).value = p[0] || '09';
+  document.getElementById(mId).value = p[1] || '00';
+}
+function getTimeFromSelects(hId, mId) {
+  return document.getElementById(hId).value + ':' + document.getElementById(mId).value;
+}
+
+// Beperkt de datumkalender tot vandaag (geen toekomst)
+function setDateMaxToday() {
+  document.getElementById('sfDate').max = dateKeyToIso(toDateKey(new Date()));
+}
+
 function openAddSession() {
   _sfMode = 'add'; _sfOrig = null;
   document.getElementById('sessionFormTitle').textContent = 'Sessie toevoegen';
   document.getElementById('sfDeleteBtn').style.display = 'none';
-  document.getElementById('sfDate').removeAttribute('readonly');
-  document.getElementById('sfDate').value  = dateKeyToIso(toDateKey(new Date()));
-  document.getElementById('sfStart').value = '';
-  document.getElementById('sfEnd').value   = '';
-  document.getElementById('sfNote').value  = '';
+  const dEl = document.getElementById('sfDate');
+  dEl.removeAttribute('readonly');
+  dEl.value = dateKeyToIso(toDateKey(new Date()));
+  setDateMaxToday();
+  setTimeSelects('sfStartH', 'sfStartM', '09:00');
+  setTimeSelects('sfEndH', 'sfEndM', '17:00');
+  document.getElementById('sfNote').value = '';
   document.getElementById('sfError').style.display = 'none';
   document.getElementById('sessionFormModal').classList.add('open');
 }
@@ -2002,10 +2051,11 @@ async function openEditSession(dateKey, clockIn) {
   // Datum niet wijzigbaar bij bewerken (voorkomt verschuiven tussen dagen)
   const dEl = document.getElementById('sfDate');
   dEl.value = dateKeyToIso(dateKey);
+  setDateMaxToday();
   dEl.setAttribute('readonly', 'readonly');
-  document.getElementById('sfStart').value = s.clockIn;
-  document.getElementById('sfEnd').value   = s.clockOut;
-  document.getElementById('sfNote').value  = s.note || '';
+  setTimeSelects('sfStartH', 'sfStartM', s.clockIn);
+  setTimeSelects('sfEndH', 'sfEndM', s.clockOut);
+  document.getElementById('sfNote').value = s.note || '';
   document.getElementById('sfError').style.display = 'none';
   document.getElementById('sessionFormModal').classList.add('open');
 }
@@ -2021,17 +2071,29 @@ function sfShowError(msg) {
 
 async function submitSessionForm() {
   const iso   = document.getElementById('sfDate').value;
-  const start = document.getElementById('sfStart').value;
-  const end   = document.getElementById('sfEnd').value;
+  const start = getTimeFromSelects('sfStartH', 'sfStartM');
+  const end   = getTimeFromSelects('sfEndH', 'sfEndM');
   const note  = document.getElementById('sfNote').value.trim();
 
-  if (!iso)              return sfShowError('Kies een datum.');
-  if (!start || !end)    return sfShowError('Vul zowel inklok- als uitkloktijd in.');
+  if (!iso) return sfShowError('Kies een datum.');
   if (timeToMinutes(end) <= timeToMinutes(start))
     return sfShowError('Uitkloktijd moet later zijn dan inkloktijd.');
 
-  const dateKey   = isoToDateKey(iso);
-  const dateObj   = parseDateKey(dateKey);
+  const dateKey  = isoToDateKey(iso);
+  const dateObj  = parseDateKey(dateKey);
+
+  // Geen sessies in de toekomst toelaten
+  const todayKey = toDateKey(new Date());
+  if (parseDateKey(dateKey) > parseDateKey(todayKey)) {
+    return sfShowError('Je kunt geen sessie in de toekomst toevoegen.');
+  }
+  if (dateKey === todayKey) {
+    const now = new Date();
+    if (timeToMinutes(end) > now.getHours() * 60 + now.getMinutes()) {
+      return sfShowError('De uitkloktijd ligt in de toekomst.');
+    }
+  }
+
   const duration  = Math.round(((timeToMinutes(end) - timeToMinutes(start)) / 60) * 100) / 100;
 
   const entry = {
@@ -2543,6 +2605,9 @@ function init() {
   document.getElementById('goalInput').addEventListener('keydown', function(e) {
     if (e.key === 'Enter') { e.preventDefault(); saveGoal(); }
   });
+
+  // Vul de tijd-keuzemenu's van het sessieformulier
+  populateTimeSelects();
 
   // Werk-omschrijving modal: opslaan-knop + Enter-toets
   document.getElementById('workSaveBtn').addEventListener('click', function() {

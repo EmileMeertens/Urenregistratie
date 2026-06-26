@@ -50,7 +50,7 @@ function setSpreadsheetId() {
 
 // Versie-stempel — zichtbaar via doGet, zodat je kunt controleren welke code
 // daadwerkelijk gedeployed is. Hoog dit op bij elke wijziging.
-var CODE_VERSION      = 'v9-edit-delete';
+var CODE_VERSION      = 'v10-sorted-tab';
 
 var SHEET_SESSIES     = 'Sessies'; // alleen nog fallback voor payload zonder userId
 var SHEET_MAAND       = 'Maandoverzicht';
@@ -334,6 +334,46 @@ function herberekenDag_(sheet, datum) {
 }
 
 /**
+ * Numerieke sorteersleutel uit een datum "dd/mm/yyyy" → JJJJMMDD.
+ */
+function datumSortKey_(value) {
+  var d = normalizeDatum_(value).split('/');
+  if (d.length !== 3) return 0;
+  return (parseInt(d[2], 10) || 0) * 10000 + (parseInt(d[1], 10) || 0) * 100 + (parseInt(d[0], 10) || 0);
+}
+
+/**
+ * Sorteert het tabblad van een gebruiker chronologisch: eerst op datum,
+ * dan op inkloktijd. Headers blijven bovenaan. Zo staat de Sheet altijd in
+ * volgorde van wanneer er gewerkt is — niet van wanneer de rij is toegevoegd.
+ *
+ * @param {Sheet} sheet  Het tabblad van de gebruiker
+ */
+function sorteerGebruikerstab_(sheet) {
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 3) return; // header + hoogstens 1 rij → niets te sorteren
+
+  var headers = data[0];
+  var rows = data.slice(1).filter(function (r) { return String(r[0]).trim() !== ''; });
+
+  rows.sort(function (a, b) {
+    var ka = datumSortKey_(a[0]), kb = datumSortKey_(b[0]);
+    if (ka !== kb) return ka - kb;
+    var ta = String(a[3] || ''), tb = String(b[3] || ''); // inkloktijd HH:MM
+    return ta < tb ? -1 : (ta > tb ? 1 : 0);
+  });
+
+  var alleData = [headers].concat(rows);
+  sheet.getRange(1, 1, alleData.length, headers.length).setValues(alleData);
+
+  // Wis eventuele overgebleven rijen onderaan (als er lege tussenrijen waren)
+  var overschot = (data.length - 1) - rows.length;
+  if (overschot > 0) {
+    sheet.getRange(rows.length + 2, 1, overschot, headers.length).clearContent();
+  }
+}
+
+/**
  * Zoekt het rijnummer (1-based) van een sessie op (datum + inkloktijd).
  * @return {number} rijnummer, of -1 als niet gevonden.
  */
@@ -365,6 +405,9 @@ function vindSessieRij_(sheet, datum, clockIn) {
 function updateMonthSummary(ss, monthLabel, userTab) {
   var sessiesSheet = ss.getSheetByName(userTab);
   if (!sessiesSheet) return; // veiligheidscheck
+
+  // Houd het tabblad van de gebruiker chronologisch geordend (datum, dan tijd).
+  sorteerGebruikerstab_(sessiesSheet);
 
   var maandSheet = getOrCreateSheet(ss, SHEET_MAAND, HEADERS_MAAND);
   // Defensief: forceer kolom A (Maand) naar tekst zodat labels niet naar een
