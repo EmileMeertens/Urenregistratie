@@ -116,41 +116,6 @@ Zie "Problemen oplossen" hieronder.
 
 ---
 
-## 6.5. Sheet-structuur (incl. Pauze-kolom)
-
-Je Google Sheet krijgt automatisch tabbladen met de volgende kolomstructuur. Elke sessie wordt geregistreerd met **9 kolommen**:
-
-1. **Datum** — de dag waarop je inclokte
-2. **Dag** — de dag van de week (Ma, Di, etc.)
-3. **Sessie #** — volgnummer van die dag
-4. **Inkloktijd** — hoe laat je begon
-5. **Uitkloktijd** — hoe laat je stopte
-6. **Duur sessie** — netto gewerkte tijd (totale tijd minus pauze), in decimale uren
-7. **Pauze** — pauzetijd in decimale uren (bijv. 0.5 = 30 minuten)
-8. **Dagtotaal** — som van alle netto duren die dag
-9. **Werk** — beschrijving van wat je deed
-
-### Automatische migratie
-
-Als je al bestaande data in Google Sheets hebt, wordt de nieuwe "Pauze"-kolom **automatisch ingevoegd** bij de volgende keer dat de app data schrijft of leest. Je hoeft je bestaande data niet handmatig aan te passen — alles migreert zelfstandig.
-
-### Herdeployment nodig
-
-Na het updaten van `Code.gs` met deze versie **moet je een nieuwe implementatie publiceren**:
-
-1. Ga naar **script.google.com** → je project
-2. Klik **Implementeren** → **Implementaties beheren**
-3. Klik het **potlood-icoontje** naast je bestaande web app
-4. Kies bij **Versie** → **Nieuwe versie** (niet "opnieuw gebruiken")
-5. Klik **Implementeren** en autoriseer opnieuw
-
-**Controleer na het updaten** of alles goed werkt:
-- Open je app en klik het **tandwiel-icoontje** → **Test verbinding**
-- De versie moet nu `v11-pauze-kolom` tonen
-- Pas dan begin je met nieuwe sessies; bestaande data migreert vanzelf
-
----
-
 ## 7. Veelvoorkomende problemen
 
 ### "Test verbinding faalt"

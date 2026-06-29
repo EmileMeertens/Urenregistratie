@@ -525,59 +525,15 @@
       align-items: center;
       gap: 6px;
     }
-    /* Getypte tijd-inputs (vervangt selects) */
-    .time-picker .time-input {
+    .time-picker .form-select {
       flex: 1;
       min-width: 0;
       text-align: center;
       padding: 10px 6px;
       font-size: 16px;
       font-variant-numeric: tabular-nums;
-      font-family: var(--font);
-      width: 100%;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border-strong);
-      background: var(--bg-elevated);
-      color: var(--text-primary);
-      transition: border-color var(--transition);
-      outline: none;
-    }
-    .time-picker .time-input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px var(--accent-glow);
     }
     .time-colon { font-size: 18px; font-weight: 700; color: var(--text-muted); }
-
-    /* ===== PAUZE-KNOP IN HERO ===== */
-    .clock-btn.pause-btn {
-      background: rgba(245,158,11,0.15);
-      color: var(--warning);
-      border: 1px solid rgba(245,158,11,0.3);
-      margin-top: 8px;
-    }
-    .clock-btn.pause-btn:hover {
-      background: rgba(245,158,11,0.25);
-      transform: translateY(-1px);
-    }
-
-    /* Status-badge "Gepauzeerd" */
-    .status-badge.paused {
-      background: rgba(245,158,11,0.1);
-      border-color: rgba(245,158,11,0.3);
-      color: var(--warning);
-    }
-    .status-badge.paused .status-dot { background: var(--warning); animation: none; }
-
-    /* Pauze-label onder de timer */
-    .pause-label {
-      font-size: 12px;
-      color: var(--warning);
-      text-align: center;
-      margin-top: 4px;
-      display: none;
-      font-weight: 600;
-    }
-    .pause-label.visible { display: block; }
 
     /* ===== LOG TABLE ===== */
     .log-table {
@@ -1115,10 +1071,6 @@
       <span class="modal-title" id="workTitle">Waar heb je aan gewerkt?</span>
     </div>
     <div class="modal-body">
-      <!-- Samenvatting van de gemeten sessie -->
-      <div id="workSummary" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;
-        background:var(--bg-elevated);border-radius:var(--radius-sm);padding:10px 12px;border:1px solid var(--border);">
-      </div>
       <div class="form-group" style="margin-bottom:0;">
         <label class="form-label" for="workInput">Omschrijving van deze shift</label>
         <textarea class="form-input" id="workInput" rows="3"
@@ -1129,57 +1081,9 @@
         </div>
       </div>
     </div>
-    <div class="modal-footer" style="flex-wrap:wrap;gap:8px;">
-      <button class="btn" onclick="resolveWork('')">Overslaan</button>
-      <button class="btn" id="workAdjustBtn" onclick="openAdjustModal()">Tijden aanpassen…</button>
-      <button class="btn primary" id="workSaveBtn">Opslaan &amp; uitklokken</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===== BEVESTIG/AANPAS MODAL (na uitklokken) ===== -->
-<div class="modal-backdrop" id="adjustModal">
-  <div class="modal" role="dialog" aria-labelledby="adjustTitle">
-    <div class="modal-header">
-      <span class="modal-title" id="adjustTitle">Tijden &amp; pauze aanpassen</span>
-      <button class="modal-close" onclick="closeAdjustModal()" aria-label="Sluiten">&#x2715;</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-group">
-        <label class="form-label">Datum</label>
-        <input class="form-input" type="text" id="adjDate" readonly style="color:var(--text-muted);" />
-      </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;">
-        <div class="form-group" style="flex:1;min-width:140px;">
-          <label class="form-label">Inkloktijd</label>
-          <div class="time-picker">
-            <input type="text" inputmode="numeric" maxlength="2" class="time-input" id="adjStartH" aria-label="Inklok uur" placeholder="09" />
-            <span class="time-colon">:</span>
-            <input type="text" inputmode="numeric" maxlength="2" class="time-input" id="adjStartM" aria-label="Inklok minuut" placeholder="00" />
-          </div>
-        </div>
-        <div class="form-group" style="flex:1;min-width:140px;">
-          <label class="form-label">Uitkloktijd</label>
-          <div class="time-picker">
-            <input type="text" inputmode="numeric" maxlength="2" class="time-input" id="adjEndH" aria-label="Uitklok uur" placeholder="17" />
-            <span class="time-colon">:</span>
-            <input type="text" inputmode="numeric" maxlength="2" class="time-input" id="adjEndM" aria-label="Uitklok minuut" placeholder="00" />
-          </div>
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="adjPause">Pauze (minuten)</label>
-        <input class="form-input" type="number" id="adjPause" min="0" step="1" placeholder="0" />
-      </div>
-      <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label" for="adjNote">Werk-omschrijving</label>
-        <input class="form-input" type="text" id="adjNote" placeholder="bv. Verslag schrijven" />
-        <div id="adjError" style="font-size:12px;color:var(--error);margin-top:8px;display:none;"></div>
-      </div>
-    </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeAdjustModal()">Annuleren</button>
-      <button class="btn primary" onclick="submitAdjustModal()">Bevestigen &amp; opslaan</button>
+      <button class="btn" onclick="resolveWork('')">Overslaan</button>
+      <button class="btn primary" id="workSaveBtn">Opslaan &amp; uitklokken</button>
     </div>
   </div>
 </div>
@@ -1225,24 +1129,19 @@
         <div class="form-group" style="flex:1;min-width:140px;">
           <label class="form-label">Inkloktijd</label>
           <div class="time-picker">
-            <input type="text" inputmode="numeric" maxlength="2" class="time-input" id="sfStartH" aria-label="Inklok uur" placeholder="09" />
+            <select class="form-select" id="sfStartH" aria-label="Inklok uur"></select>
             <span class="time-colon">:</span>
-            <input type="text" inputmode="numeric" maxlength="2" class="time-input" id="sfStartM" aria-label="Inklok minuut" placeholder="00" />
+            <select class="form-select" id="sfStartM" aria-label="Inklok minuut"></select>
           </div>
         </div>
         <div class="form-group" style="flex:1;min-width:140px;">
           <label class="form-label">Uitkloktijd</label>
           <div class="time-picker">
-            <input type="text" inputmode="numeric" maxlength="2" class="time-input" id="sfEndH" aria-label="Uitklok uur" placeholder="17" />
+            <select class="form-select" id="sfEndH" aria-label="Uitklok uur"></select>
             <span class="time-colon">:</span>
-            <input type="text" inputmode="numeric" maxlength="2" class="time-input" id="sfEndM" aria-label="Uitklok minuut" placeholder="00" />
+            <select class="form-select" id="sfEndM" aria-label="Uitklok minuut"></select>
           </div>
         </div>
-      </div>
-      <!-- Pauze-veld (FEATURE 3) -->
-      <div class="form-group">
-        <label class="form-label" for="sfPause">Pauze (minuten)</label>
-        <input class="form-input" type="number" id="sfPause" min="0" step="1" placeholder="0" />
       </div>
       <div class="form-group" style="margin-bottom:0;">
         <label class="form-label" for="sfNote">Werk (optioneel)</label>
@@ -1298,8 +1197,6 @@
     <!-- Session timer -->
     <div class="session-timer" id="sessionTimer">--:--:--</div>
     <div class="session-timer-label" id="sessionTimerLabel">Huidige sessie</div>
-    <!-- Pauze-label (zichtbaar tijdens pauze of als er pauze is opgebouwd) -->
-    <div class="pause-label" id="pauseLabel">Pauze: 0 min</div>
 
     <!-- Clock in info -->
     <div class="clockin-info" id="clockinInfo" style="display:none;">
@@ -1313,10 +1210,6 @@
 
     <button class="clock-btn clock-in" id="clockBtn" onclick="toggleClock()">
       Inklokken
-    </button>
-    <!-- Pauze-knop (alleen zichtbaar terwijl ingeklokt, FEATURE 1) -->
-    <button class="clock-btn pause-btn" id="pauseBtn" onclick="togglePause()" style="display:none;">
-      Pauze
     </button>
   </div>
 
@@ -1711,13 +1604,10 @@ function mergeSheetLog(sheetSessions) {
   const keyOf = s => `${s.date}|${s.session}`;
   const byKey = {};
 
-  // Sheet is autoritatief voor zijn eigen sleutels; zorg dat `pause` altijd aanwezig is (default 0)
-  sheetSessions.forEach(s => { byKey[keyOf(s)] = Object.assign({ pause: 0 }, s); });
+  // Sheet is autoritatief voor zijn eigen sleutels
+  sheetSessions.forEach(s => { byKey[keyOf(s)] = s; });
   // Lokale entries die (nog) niet in de Sheet staan behouden (bv. pending)
-  local.forEach(s => {
-    const k = keyOf(s);
-    if (!(k in byKey)) byKey[k] = Object.assign({ pause: 0 }, s);
-  });
+  local.forEach(s => { const k = keyOf(s); if (!(k in byKey)) byKey[k] = s; });
 
   const merged = Object.keys(byKey).map(k => byKey[k]);
   merged.sort((a, b) => {
@@ -1850,106 +1740,34 @@ async function toggleClock() {
 
 async function clockIn() {
   const now = new Date();
-  // Initialiseer actieve sessie met pauze-tracking velden (FEATURE 1)
-  setActiveSession({
-    startTime:  now.toISOString(),
-    pausedMs:   0,      // totaal opgebouwde pauze in ms
-    pauseStart: null,   // ISO-timestamp wanneer huidige pauze begon, of null
-  });
+  setActiveSession({ startTime: now.toISOString() });
   startTimer(now);
   updateClockUI(true, now);
   updateStats();
   showToast(`Ingeklokt om ${toHHMM(now)}`, 'success');
 }
 
-// Pauze/hervatten wisselen (FEATURE 1)
-function togglePause() {
-  const active = getActiveSession();
-  if (!active) return;
-  const now = new Date();
-
-  if (active.pauseStart) {
-    // Momenteel gepauzeerd → hervatten
-    const addedMs = now.getTime() - new Date(active.pauseStart).getTime();
-    active.pausedMs   = (active.pausedMs || 0) + addedMs;
-    active.pauseStart = null;
-  } else {
-    // Momenteel lopend → pauzeren
-    active.pauseStart = now.toISOString();
-  }
-
-  setActiveSession(active);
-  updatePauseBtnUI(active);
-  updateStatusBadge(active);
-}
-
-// Past de pauze-knoptekst en status-badge aan
-function updatePauseBtnUI(active) {
-  const btn = document.getElementById('pauseBtn');
-  if (!btn) return;
-  btn.textContent = active && active.pauseStart ? 'Hervatten' : 'Pauze';
-}
-
-// Bijwerken status-badge op basis van pauze-staat
-function updateStatusBadge(active) {
-  const badge = document.getElementById('statusBadge');
-  const text  = document.getElementById('statusText');
-  if (!badge || !text) return;
-  const isPaused = active && active.pauseStart;
-  badge.classList.toggle('paused', !!isPaused);
-  text.textContent = isPaused ? 'Gepauzeerd' : 'Ingeklokt';
-}
-
 async function clockOut(active) {
   const start  = new Date(active.startTime);
   const end    = new Date();
+  const durationMs = end - start;
 
-  // Sluit eventueel nog lopende pauze af vóór berekening
-  let finalPausedMs = active.pausedMs || 0;
-  if (active.pauseStart) {
-    finalPausedMs += end.getTime() - new Date(active.pauseStart).getTime();
-  }
-
-  const brutoMs    = end - start;
-  const nettoMs    = Math.max(0, brutoMs - finalPausedMs);
-  const pauseHours = Math.round((finalPausedMs / 3600000) * 100) / 100;
-  const duration   = Math.round((nettoMs / 3600000) * 100) / 100; // NETTO
-
-  if (brutoMs < 60000) {
+  if (durationMs < 60000) {
     showToast('Sessie is korter dan 1 minuut — toch opgeslagen.', 'warning');
   }
 
-  // Sla de gemeten waarden op voor gebruik in de modals
-  _pendingClockOut = {
-    start:       start,
-    end:         end,
-    pauseHours:  pauseHours,
-    duration:    duration,
-    brutoMs:     brutoMs,
-    active:      active,
-  };
+  // Vraag de werk-omschrijving via pop-up vóór we afronden
+  const note = await askWorkDescription();
 
-  // Vraag de werk-omschrijving (FEATURE 2)
-  const result = await askWorkDescription(start, end, pauseHours, duration);
-  if (result === null) {
-    // Gebruiker heeft "Tijden aanpassen" gekozen → adjust modal neemt het over
-    return;
-  }
-
-  // Direct opslaan met gemeten waarden
-  await finalizeClock(start, end, pauseHours, duration, result);
-}
-
-// Slaat de sessie definitief op (gedeeld pad voor direct opslaan én aanpassen)
-async function finalizeClock(start, end, pauseHours, duration, note) {
   clearActiveSession();
   stopTimer();
-  updateClockUI(false);
 
+  // Bouw payload
   const dateKey    = toDateKey(start);
   const dateObj    = parseDateKey(dateKey);
   const dayAbbr    = NL_DAYS[dateObj.getDay()];
   const monthLabel = getNlMonthLabel(dateObj.getFullYear(), dateObj.getMonth());
+  const duration   = decimalHours(durationMs);
 
   // Bereken session# en dagTotaal
   const lsAdapter = new LocalStorageAdapter();
@@ -1960,47 +1778,44 @@ async function finalizeClock(start, end, pauseHours, duration, note) {
   const dayTotal   = Math.round((prevTotal + duration) * 100) / 100;
 
   const sessionData = {
-    userId:    USER.userId,
+    userId:    USER.userId,       // bepaalt het tabblad in de gedeelde Sheet
     email:     USER.email,
     date:      dateKey,
     day:       dayAbbr,
     session:   sessionNum,
     clockIn:   toHHMM(start),
     clockOut:  toHHMM(end),
-    duration:  duration,   // NETTO
-    pause:     pauseHours, // pauze in decimale uren
+    duration:  duration,
     dayTotal:  dayTotal,
     month:     monthLabel,
-    note:      note || '',
+    note:      note,
   };
 
   // Altijd lokaal opslaan
   await lsAdapter.saveSession(sessionData);
 
-  // Optioneel naar Sheets (action:'add' impliciet via saveSession)
+  // Optioneel naar Sheets
   if (CONFIG.adapter === 'googlesheets') {
-    const payload = Object.assign({ action: 'add' }, sessionData);
     const sheetsAdapter = new GoogleSheetsAdapter();
     try {
-      await sheetsAdapter.saveSession(payload);
-      showToast(`Uitgeklokt ${toHHMM(start)}–${toHHMM(end)} (netto ${duration.toFixed(2)} u) · Sheets ✓`, 'success');
+      await sheetsAdapter.saveSession(sessionData);
+      showToast(`Uitklokt ${toHHMM(start)}–${toHHMM(end)} (${duration.toFixed(2)} u) · Sheets ✓`, 'success');
+      // Flush eventuele pending na succesvolle write
       const q = getPending();
       if (q.length > 0) flushPendingQueue();
     } catch(e) {
-      addToPending(payload);
+      addToPending(sessionData);
       showToast(`Sessie lokaal opgeslagen. Sheets mislukt: ${e.message}`, 'warning');
       updatePendingCount();
     }
   } else {
-    showToast(`Uitgeklokt ${toHHMM(start)}–${toHHMM(end)} (netto ${duration.toFixed(2)} u)`, 'success');
+    showToast(`Uitklokt ${toHHMM(start)}–${toHHMM(end)} (${duration.toFixed(2)} u)`, 'success');
   }
 
+  updateClockUI(false);
   updateStats();
   renderLog();
 }
-
-// Tijdelijk bewaard voor de adjust-modal
-let _pendingClockOut = null;
 
 /* =====================================================
    TIMER UI
@@ -2008,35 +1823,9 @@ let _pendingClockOut = null;
 function startTimer(startTime) {
   stopTimer();
   timerInterval = setInterval(() => {
-    // Haal de actuele actieve sessie op (pauze-staat kan tussentijds veranderd zijn)
-    const active = getActiveSession();
-    if (!active) return;
-
-    const now = Date.now();
-    const pausedMs    = active.pausedMs || 0;
-    const curPauseMs  = active.pauseStart ? (now - new Date(active.pauseStart).getTime()) : 0;
-    const nettoMs     = Math.max(0, now - new Date(active.startTime).getTime() - pausedMs - curPauseMs);
-
-    // Tijdens pauze: timer staat stil; toon opgebouwde pauze
-    if (!active.pauseStart) {
-      document.getElementById('sessionTimer').textContent = formatDuration(nettoMs);
-    }
-
-    // Pauze-label bijwerken
-    const totalPauseMs = pausedMs + curPauseMs;
-    const pauseMin = Math.round(totalPauseMs / 60000);
-    const lbl = document.getElementById('pauseLabel');
-    if (lbl) {
-      if (totalPauseMs > 0) {
-        lbl.textContent = `Pauze: ${pauseMin} min`;
-        lbl.classList.add('visible');
-      } else {
-        lbl.classList.remove('visible');
-      }
-    }
-
-    // Dagtotaal bijwerken (netto)
-    updateLiveDayTotal(new Date(active.startTime), nettoMs);
+    const elapsed = Date.now() - startTime.getTime();
+    document.getElementById('sessionTimer').textContent = formatDuration(elapsed);
+    updateLiveDayTotal(startTime);
   }, 1000);
   document.getElementById('sessionTimer').textContent = '00:00:00';
 }
@@ -2045,62 +1834,49 @@ function stopTimer() {
   if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 }
 
-// nettoMs optioneel: als meegegeven, gebruik dat; anders bereken zelf
-function updateLiveDayTotal(startTime, nettoMs) {
+function updateLiveDayTotal(startTime) {
+  const lsAdapter = new LocalStorageAdapter();
   const raw = localStorage.getItem(STORAGE_KEYS.log);
   const log = raw ? JSON.parse(raw) : [];
   const dateKey = toDateKey(startTime);
   const dayLog = log.filter(s => s.date === dateKey);
   const prev = dayLog.reduce((a, s) => a + (s.duration || 0), 0);
-  // Als geen nettoMs opgegeven: bruto (backwards compat bij refreshForUser)
-  const currentNet = (nettoMs !== undefined) ? decimalHours(nettoMs)
-    : decimalHours(Date.now() - startTime.getTime());
-  const total = prev + currentNet;
+  const currentMs = Date.now() - startTime.getTime();
+  const total = prev + decimalHours(currentMs);
   const el = document.getElementById('dayTotalLiveValue');
   if (el) el.textContent = total.toFixed(2);
+
+  // Bijwerken "Vandaag" stat ook
   document.getElementById('statToday').textContent = total.toFixed(2);
 }
 
 function updateClockUI(isActive, startTime) {
-  const btn      = document.getElementById('clockBtn');
-  const badge    = document.getElementById('statusBadge');
-  const text     = document.getElementById('statusText');
-  const info     = document.getElementById('clockinInfo');
-  const dTime    = document.getElementById('clockinTimeDisplay');
-  const dayLive  = document.getElementById('dayTotalLive');
+  const btn    = document.getElementById('clockBtn');
+  const badge  = document.getElementById('statusBadge');
+  const text   = document.getElementById('statusText');
+  const info   = document.getElementById('clockinInfo');
+  const dTime  = document.getElementById('clockinTimeDisplay');
+  const dayLive = document.getElementById('dayTotalLive');
   const timerLbl = document.getElementById('sessionTimerLabel');
-  const pauseBtn = document.getElementById('pauseBtn');
-  const pauseLbl = document.getElementById('pauseLabel');
 
   if (isActive) {
     btn.textContent = 'Uitklokken';
     btn.className = 'clock-btn clock-out';
     badge.classList.add('active');
-    badge.classList.remove('paused');
     text.textContent = 'Ingeklokt';
     info.style.display = 'flex';
     if (startTime) dTime.textContent = toHHMM(startTime);
     dayLive.style.display = 'flex';
     timerLbl.textContent = 'Lopende sessie';
-    if (pauseBtn) pauseBtn.style.display = 'block';
-
-    // Herstel pauze-knoptekst en badge bij refresh
-    const active = getActiveSession();
-    if (active) {
-      updatePauseBtnUI(active);
-      updateStatusBadge(active);
-    }
   } else {
     btn.textContent = 'Inklokken';
     btn.className = 'clock-btn clock-in';
-    badge.classList.remove('active', 'paused');
+    badge.classList.remove('active');
     text.textContent = 'Uitgeklokt';
     info.style.display = 'none';
     dayLive.style.display = 'none';
     document.getElementById('sessionTimer').textContent = '--:--:--';
     timerLbl.textContent = 'Huidige sessie';
-    if (pauseBtn) pauseBtn.style.display = 'none';
-    if (pauseLbl) { pauseLbl.classList.remove('visible'); }
   }
 }
 
@@ -2222,78 +1998,26 @@ function isoToDateKey(iso) { const p = iso.split('-'); return `${p[2]}/${p[1]}/$
 function dateKeyToIso(dk)  { const p = dk.split('/');  return `${p[2]}-${p[1]}-${p[0]}`; }
 function timeToMinutes(t)  { const p = String(t).split(':'); return (+p[0]) * 60 + (+p[1]); }
 
-/* --- FEATURE 5: Getypte tijd-picker helper --- */
-// Koppelt auto-advance en validatie aan een uur/minuut tekstveld-paar.
-// hEl = uren input, mEl = minuten input (beide HTMLInputElement type="text")
-function attachTimeInput(hEl, mEl) {
-  // Alleen cijfers toelaten
-  function digitsOnly(e) {
-    if (!/^\d$/.test(e.key) && !['Backspace','Delete','Tab','ArrowLeft','ArrowRight'].includes(e.key)) {
-      e.preventDefault();
+// Vult de uur- (00-23) en minuut- (00-59) keuzemenu's eenmalig
+function populateTimeSelects() {
+  [['sfStartH', 24], ['sfEndH', 24], ['sfStartM', 60], ['sfEndM', 60]].forEach(([id, n]) => {
+    const el = document.getElementById(id);
+    el.innerHTML = '';
+    for (let i = 0; i < n; i++) {
+      const o = document.createElement('option');
+      o.value = pad2(i); o.textContent = pad2(i);
+      el.appendChild(o);
     }
-  }
-
-  hEl.addEventListener('keydown', digitsOnly);
-  mEl.addEventListener('keydown', digitsOnly);
-
-  // Uren: auto-advance bij 2 cijfers of als eerste cijfer >= 3
-  hEl.addEventListener('input', function() {
-    const val = this.value.replace(/\D/g, '').slice(0, 2);
-    this.value = val;
-    if (val.length === 2 || (val.length === 1 && +val >= 3)) {
-      // Clamp uren 0-23
-      if (+val > 23) this.value = '23';
-      mEl.focus();
-      mEl.select();
-    }
-  });
-
-  // Minuten: Backspace in leeg veld springt terug naar uren
-  mEl.addEventListener('keydown', function(e) {
-    if (e.key === 'Backspace' && this.value === '') {
-      e.preventDefault();
-      hEl.focus();
-      hEl.setSelectionRange(hEl.value.length, hEl.value.length);
-    }
-  });
-
-  mEl.addEventListener('input', function() {
-    const val = this.value.replace(/\D/g, '').slice(0, 2);
-    this.value = val;
-    // Clamp minuten 0-59
-    if (val.length === 2 && +val > 59) this.value = '59';
-  });
-
-  // Bij blur: pad naar 2 cijfers en clamp
-  hEl.addEventListener('blur', function() {
-    if (!this.value) this.value = '00';
-    let n = parseInt(this.value, 10);
-    if (isNaN(n)) n = 0;
-    if (n > 23) n = 23;
-    this.value = pad2(n);
-  });
-
-  mEl.addEventListener('blur', function() {
-    if (!this.value) this.value = '00';
-    let n = parseInt(this.value, 10);
-    if (isNaN(n)) n = 0;
-    if (n > 59) n = 59;
-    this.value = pad2(n);
   });
 }
 
-// Zet een tijd ("HH:MM") in een uur/minuut tekstveld-paar
-function setTimeInputs(hId, mId, hhmm) {
+function setTimeSelects(hId, mId, hhmm) {
   const p = String(hhmm || '').split(':');
-  document.getElementById(hId).value = pad2(parseInt(p[0], 10) || 0);
-  document.getElementById(mId).value = pad2(parseInt(p[1], 10) || 0);
+  document.getElementById(hId).value = p[0] || '09';
+  document.getElementById(mId).value = p[1] || '00';
 }
-
-// Leest "HH:MM" uit een uur/minuut tekstveld-paar
-function getTimeInputs(hId, mId) {
-  const h = document.getElementById(hId).value || '00';
-  const m = document.getElementById(mId).value || '00';
-  return pad2(parseInt(h, 10) || 0) + ':' + pad2(parseInt(m, 10) || 0);
+function getTimeFromSelects(hId, mId) {
+  return document.getElementById(hId).value + ':' + document.getElementById(mId).value;
 }
 
 // Beperkt de datumkalender tot vandaag (geen toekomst)
@@ -2309,9 +2033,8 @@ function openAddSession() {
   dEl.removeAttribute('readonly');
   dEl.value = dateKeyToIso(toDateKey(new Date()));
   setDateMaxToday();
-  setTimeInputs('sfStartH', 'sfStartM', '09:00');
-  setTimeInputs('sfEndH',   'sfEndM',   '17:00');
-  document.getElementById('sfPause').value = '0';
+  setTimeSelects('sfStartH', 'sfStartM', '09:00');
+  setTimeSelects('sfEndH', 'sfEndM', '17:00');
   document.getElementById('sfNote').value = '';
   document.getElementById('sfError').style.display = 'none';
   document.getElementById('sessionFormModal').classList.add('open');
@@ -2330,10 +2053,8 @@ async function openEditSession(dateKey, clockIn) {
   dEl.value = dateKeyToIso(dateKey);
   setDateMaxToday();
   dEl.setAttribute('readonly', 'readonly');
-  setTimeInputs('sfStartH', 'sfStartM', s.clockIn);
-  setTimeInputs('sfEndH',   'sfEndM',   s.clockOut);
-  // Vul pauze voor in minuten (default 0 voor oude sessies)
-  document.getElementById('sfPause').value = Math.round((s.pause || 0) * 60);
+  setTimeSelects('sfStartH', 'sfStartM', s.clockIn);
+  setTimeSelects('sfEndH', 'sfEndM', s.clockOut);
   document.getElementById('sfNote').value = s.note || '';
   document.getElementById('sfError').style.display = 'none';
   document.getElementById('sessionFormModal').classList.add('open');
@@ -2349,18 +2070,14 @@ function sfShowError(msg) {
 }
 
 async function submitSessionForm() {
-  const iso      = document.getElementById('sfDate').value;
-  const start    = getTimeInputs('sfStartH', 'sfStartM');
-  const end      = getTimeInputs('sfEndH', 'sfEndM');
-  const note     = document.getElementById('sfNote').value.trim();
-  const pauseMin = parseInt(document.getElementById('sfPause').value, 10) || 0;
+  const iso   = document.getElementById('sfDate').value;
+  const start = getTimeFromSelects('sfStartH', 'sfStartM');
+  const end   = getTimeFromSelects('sfEndH', 'sfEndM');
+  const note  = document.getElementById('sfNote').value.trim();
 
   if (!iso) return sfShowError('Kies een datum.');
-  const brutoMin = timeToMinutes(end) - timeToMinutes(start);
-  if (brutoMin <= 0)
+  if (timeToMinutes(end) <= timeToMinutes(start))
     return sfShowError('Uitkloktijd moet later zijn dan inkloktijd.');
-  if (pauseMin < 0 || pauseMin >= brutoMin)
-    return sfShowError('Pauze moet tussen 0 en de sessieduur liggen.');
 
   const dateKey  = isoToDateKey(iso);
   const dateObj  = parseDateKey(dateKey);
@@ -2377,20 +2094,17 @@ async function submitSessionForm() {
     }
   }
 
-  // NETTO duration = bruto - pauze
-  const pauseHours = Math.round((pauseMin / 60) * 100) / 100;
-  const duration   = Math.round(((brutoMin - pauseMin) / 60) * 100) / 100;
+  const duration  = Math.round(((timeToMinutes(end) - timeToMinutes(start)) / 60) * 100) / 100;
 
   const entry = {
     userId:   USER.userId,
     email:    USER.email,
     date:     dateKey,
     day:      NL_DAYS[dateObj.getDay()],
-    session:  1, // hernummerd door recomputeLocalDay
+    session:  1, // server/lokaal hernummeren dit chronologisch
     clockIn:  start,
     clockOut: end,
-    duration: duration,  // NETTO
-    pause:    pauseHours,
+    duration: duration,
     dayTotal: 0,
     month:    getNlMonthLabel(dateObj.getFullYear(), dateObj.getMonth()),
     note:     note,
@@ -2400,20 +2114,13 @@ async function submitSessionForm() {
 
   if (_sfMode === 'edit') {
     localEditSession(_sfOrig, entry);
-    // Stuur edit naar de Sheet (origClockIn identificeert de rij) — FEATURE 4
+    // Stuur edit naar de Sheet (origClockIn identificeert de rij)
     if (CONFIG.adapter === 'googlesheets') {
       try {
         await sheetRequest({
-          action:      'edit',
-          userId:      USER.userId,
-          date:        dateKey,
-          origClockIn: _sfOrig.clockIn, // identificeert de rij in de Sheet
-          clockIn:     start,
-          clockOut:    end,
-          duration:    duration,  // NETTO
-          pause:       pauseHours,
-          note:        note,
-          month:       entry.month,
+          action: 'edit', userId: USER.userId, date: dateKey,
+          origClockIn: _sfOrig.clockIn, clockIn: start, clockOut: end,
+          duration: duration, note: note, month: entry.month,
         });
         showToast('Sessie bijgewerkt · Sheets ✓', 'success');
       } catch (e) {
@@ -2425,12 +2132,11 @@ async function submitSessionForm() {
   } else {
     localAddSession(entry);
     if (CONFIG.adapter === 'googlesheets') {
-      const payload = Object.assign({ action: 'add' }, entry);
       try {
-        await new GoogleSheetsAdapter().saveSession(payload);
+        await new GoogleSheetsAdapter().saveSession(entry);
         showToast('Sessie toegevoegd · Sheets ✓', 'success');
       } catch (e) {
-        addToPending(payload);
+        addToPending(entry);
         showToast(`Sessie lokaal toegevoegd. Sheets mislukte: ${e.message}`, 'warning');
         updatePendingCount();
       }
@@ -2664,14 +2370,13 @@ async function exportExcel() {
   }
 
   const rows = [
-    ['Datum', 'Dag', 'Sessie', 'Inklokken', 'Uitklokken', 'Pauze (min)', 'Duur netto (u)', 'Dagtotaal (u)', 'Maand', 'Werk']
+    ['Datum', 'Dag', 'Sessie', 'Inklokken', 'Uitklokken', 'Duur (u)', 'Dagtotaal (u)', 'Maand', 'Werk']
   ];
 
   for (const s of log) {
-    const pauseMin = Math.round((s.pause || 0) * 60);
     rows.push([
       s.date, s.day, s.session, s.clockIn, s.clockOut,
-      pauseMin, s.duration, s.dayTotal, s.month, s.note || ''
+      s.duration, s.dayTotal, s.month, s.note || ''
     ]);
   }
 
@@ -2680,7 +2385,7 @@ async function exportExcel() {
 
   // Kolombreedte
   ws['!cols'] = [
-    {wch:12},{wch:10},{wch:8},{wch:12},{wch:12},{wch:13},{wch:16},{wch:15},{wch:16},{wch:40}
+    {wch:12},{wch:10},{wch:8},{wch:12},{wch:12},{wch:12},{wch:15},{wch:16},{wch:40}
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, 'Sessies');
@@ -2692,30 +2397,18 @@ async function exportExcel() {
 }
 
 /* =====================================================
-   WERK-OMSCHRIJVING MODAL (bij uitklokken) — FEATURE 2
+   WERK-OMSCHRIJVING MODAL (bij uitklokken)
    ===================================================== */
 let _workResolver = null;
 
-// Geeft een Promise terug die resolved met:
-//   - string (omschrijving) → direct opslaan
-//   - null                  → gebruiker koos "Tijden aanpassen…"
-function askWorkDescription(start, end, pauseHours, duration) {
+// Geeft een Promise terug die resolved met de ingevoerde omschrijving (string).
+function askWorkDescription() {
   return new Promise((resolve) => {
     _workResolver = resolve;
     const input = document.getElementById('workInput');
     input.value = '';
-
-    // Toon samenvatting van de gemeten sessie
-    const pauseMin = Math.round((pauseHours || 0) * 60);
-    const summaryEl = document.getElementById('workSummary');
-    if (summaryEl) {
-      summaryEl.innerHTML =
-        `<strong>${toHHMM(start)} – ${toHHMM(end)}</strong>` +
-        (pauseMin > 0 ? ` &nbsp;|&nbsp; Pauze: <strong>${pauseMin} min</strong>` : '') +
-        ` &nbsp;|&nbsp; Netto: <strong>${duration.toFixed(2)} u</strong>`;
-    }
-
     document.getElementById('workModal').classList.add('open');
+    // Focus na de render-tick
     setTimeout(() => input.focus(), 50);
   });
 }
@@ -2728,94 +2421,6 @@ function resolveWork(value) {
     _workResolver = null;
     r(value);
   }
-}
-
-/* ===== BEVESTIG/AANPAS MODAL — FEATURE 2 ===== */
-
-// Opent de bevestig-modal vooringevuld met de gemeten waarden
-function openAdjustModal() {
-  if (!_pendingClockOut) return;
-  const { start, end, pauseHours, duration } = _pendingClockOut;
-  const note = document.getElementById('workInput').value.trim();
-  // Bewaar de omschrijving zodat annuleren de sessie tóch met deze note opslaat
-  _pendingClockOut.note = note;
-
-  // Sluit work-modal (resolveWork(null) wordt NIET aangeroepen — we handelen zelf)
-  document.getElementById('workModal').classList.remove('open');
-  if (_workResolver) {
-    // Annuleer de promise zodat clockOut() niet verder gaat
-    const r = _workResolver;
-    _workResolver = null;
-    // Geef null terug → clockOut zal returnen zonder finalizeClock
-    r(null);
-  }
-
-  // Vul de modal
-  document.getElementById('adjDate').value = toDateKey(start);
-  setTimeInputs('adjStartH', 'adjStartM', toHHMM(start));
-  setTimeInputs('adjEndH',   'adjEndM',   toHHMM(end));
-  document.getElementById('adjPause').value = Math.round((pauseHours || 0) * 60);
-  document.getElementById('adjNote').value  = note;
-  document.getElementById('adjError').style.display = 'none';
-
-  document.getElementById('adjustModal').classList.add('open');
-}
-
-// Annuleren/sluiten van de aanpas-modal: de sessie is al uitgeklokt, dus
-// sla ze op met de oorspronkelijk gemeten waarden (géén dataverlies).
-function closeAdjustModal() {
-  const modal = document.getElementById('adjustModal');
-  // Niets doen als de aanpas-modal niet open is (bv. ESC tijdens de werk-modal)
-  if (!modal.classList.contains('open')) return;
-  modal.classList.remove('open');
-  if (_pendingClockOut) {
-    const { start, end, pauseHours, duration, note } = _pendingClockOut;
-    _pendingClockOut = null;
-    finalizeClock(start, end, pauseHours, duration, note || '');
-  }
-}
-
-async function submitAdjustModal() {
-  if (!_pendingClockOut) return;
-
-  const startStr = getTimeInputs('adjStartH', 'adjStartM');
-  const endStr   = getTimeInputs('adjEndH',   'adjEndM');
-  const pauseMin = parseInt(document.getElementById('adjPause').value, 10) || 0;
-  const note     = document.getElementById('adjNote').value.trim();
-  const dateKey  = document.getElementById('adjDate').value; // nl format dd/mm/yyyy
-
-  function adjError(msg) {
-    const el = document.getElementById('adjError');
-    el.textContent = msg; el.style.display = 'block';
-  }
-
-  const brutoMin = timeToMinutes(endStr) - timeToMinutes(startStr);
-  if (brutoMin <= 0) return adjError('Uitkloktijd moet later zijn dan inkloktijd.');
-  if (pauseMin < 0 || pauseMin >= brutoMin) return adjError('Pauze moet tussen 0 en de sessieduur liggen.');
-
-  // Toekomst-check op de gecorrigeerde uitkloktijd
-  const todayKey = toDateKey(new Date());
-  if (dateKey === todayKey) {
-    const now = new Date();
-    if (timeToMinutes(endStr) > now.getHours() * 60 + now.getMinutes()) {
-      return adjError('De uitkloktijd ligt in de toekomst.');
-    }
-  }
-
-  const pauseHours = Math.round((pauseMin / 60) * 100) / 100;
-  const duration   = Math.round(((brutoMin - pauseMin) / 60) * 100) / 100;
-
-  // Reconstrueer start/end als Date-objecten
-  const dateObj  = parseDateKey(dateKey);
-  const [sh, sm] = startStr.split(':').map(Number);
-  const [eh, em] = endStr.split(':').map(Number);
-  const adjStart = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), sh, sm, 0);
-  const adjEnd   = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), eh, em, 0);
-
-  document.getElementById('adjustModal').classList.remove('open');
-  _pendingClockOut = null;
-
-  await finalizeClock(adjStart, adjEnd, pauseHours, duration, note);
 }
 
 /* =====================================================
@@ -2990,13 +2595,10 @@ function init() {
   document.getElementById('sessionFormModal').addEventListener('click', function(e) {
     if (e.target === this) closeSessionForm();
   });
-  document.getElementById('adjustModal').addEventListener('click', function(e) {
-    if (e.target === this) closeAdjustModal();
-  });
 
   // ESC sluit open modals
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') { closeSettings(); closeSessionForm(); closeAdjustModal(); }
+    if (e.key === 'Escape') { closeSettings(); closeSessionForm(); }
   });
 
   // Weekdoel: Enter in het invoerveld slaat op
@@ -3004,11 +2606,8 @@ function init() {
     if (e.key === 'Enter') { e.preventDefault(); saveGoal(); }
   });
 
-  // FEATURE 5: Koppel de getypte tijd-pickers aan alle velden
-  attachTimeInput(document.getElementById('sfStartH'), document.getElementById('sfStartM'));
-  attachTimeInput(document.getElementById('sfEndH'),   document.getElementById('sfEndM'));
-  attachTimeInput(document.getElementById('adjStartH'), document.getElementById('adjStartM'));
-  attachTimeInput(document.getElementById('adjEndH'),   document.getElementById('adjEndM'));
+  // Vul de tijd-keuzemenu's van het sessieformulier
+  populateTimeSelects();
 
   // Werk-omschrijving modal: opslaan-knop + Enter-toets
   document.getElementById('workSaveBtn').addEventListener('click', function() {

@@ -50,12 +50,12 @@ function setSpreadsheetId() {
 
 // Versie-stempel — zichtbaar via doGet, zodat je kunt controleren welke code
 // daadwerkelijk gedeployed is. Hoog dit op bij elke wijziging.
-var CODE_VERSION      = 'v11-pauze-kolom';
+var CODE_VERSION      = 'v10-sorted-tab';
 
 var SHEET_SESSIES     = 'Sessies'; // alleen nog fallback voor payload zonder userId
 var SHEET_MAAND       = 'Maandoverzicht';
 
-var HEADERS_SESSIES   = ['Datum', 'Dag', 'Sessie #', 'Inkloktijd', 'Uitkloktijd', 'Duur sessie', 'Pauze', 'Dagtotaal', 'Werk'];
+var HEADERS_SESSIES   = ['Datum', 'Dag', 'Sessie #', 'Inkloktijd', 'Uitkloktijd', 'Duur sessie', 'Dagtotaal', 'Werk'];
 var HEADERS_MAAND     = ['Maand', 'Naam', 'Werkdagen', 'Totale uren', 'Gemiddelde uren per dag'];
 
 // Tabnamen die NOOIT een persoonlijk tabblad mogen worden
@@ -138,9 +138,6 @@ function getUserLog_(ss, userId) {
   var sheet = ss.getSheetByName(tab);
   if (!sheet) return []; // gebruiker heeft nog geen sessies
 
-  // Migreer bestaande tabbladen naar de nieuwe 9-kolomsindeling (idempotent)
-  ensurePauzeKolom_(sheet);
-
   var data = sheet.getDataRange().getValues();
   var sessions = [];
   for (var r = 1; r < data.length; r++) {
@@ -155,11 +152,10 @@ function getUserLog_(ss, userId) {
       session:  Number(rij[2]) || 0,
       clockIn:  String(rij[3] || ''),
       clockOut: String(rij[4] || ''),
-      duration: Number(rij[5]) || 0,        // F: Duur sessie (netto)
-      pause:    (rij[6] === '' || rij[6] === null) ? 0 : (Number(rij[6]) || 0), // G: Pauze
-      dayTotal: (rij[7] === '' || rij[7] === null) ? 0 : (Number(rij[7]) || 0), // H: Dagtotaal
+      duration: Number(rij[5]) || 0,
+      dayTotal: (rij[6] === '' || rij[6] === null) ? 0 : (Number(rij[6]) || 0),
       month:    maandInfo,
-      note:     String(rij[8] || '')        // I: Werk
+      note:     String(rij[7] || '')
     });
   }
   return sessions;
@@ -229,8 +225,6 @@ function doPost(e) {
 
     try {
       var sheet = getOrCreateSheet(ss, userTab, HEADERS_SESSIES);
-      // Migreer bestaande tabbladen naar de nieuwe 9-kolomsindeling (idempotent)
-      ensurePauzeKolom_(sheet);
       var datum = String(payload.date || '').trim();
       var maand = payload.month || maandLabelUitDatum_(datum);
 
@@ -250,11 +244,10 @@ function doPost(e) {
         if (eRow <= 0) {
           return jsonResponse({ success: false, error: 'Te bewerken sessie niet gevonden.' });
         }
-        sheet.getRange(eRow, 4).setValue(payload.clockIn);       // D: Inkloktijd
-        sheet.getRange(eRow, 5).setValue(payload.clockOut);    // E: Uitkloktijd
-        sheet.getRange(eRow, 6).setValue(payload.duration);    // F: Duur sessie (netto)
-        sheet.getRange(eRow, 7).setValue(payload.pause || 0);  // G: Pauze (NIEUW)
-        sheet.getRange(eRow, 9).setValue(payload.note || '');  // I: Werk (was H)
+        sheet.getRange(eRow, 4).setValue(payload.clockIn);    // D: Inkloktijd
+        sheet.getRange(eRow, 5).setValue(payload.clockOut);   // E: Uitkloktijd
+        sheet.getRange(eRow, 6).setValue(payload.duration);   // F: Duur
+        sheet.getRange(eRow, 8).setValue(payload.note || '');  // H: Werk
         herberekenDag_(sheet, datum);
         updateMonthSummary(ss, maand, userTab);
         return jsonResponse({ success: true, edited: true });
@@ -281,10 +274,9 @@ function doPost(e) {
         payload.session || 1,   // C: Sessie # (wordt zo herberekend)
         payload.clockIn,        // D: Inkloktijd
         payload.clockOut,       // E: Uitkloktijd
-        payload.duration,       // F: Duur sessie (netto, aangeleverd door frontend)
-        payload.pause || 0,     // G: Pauze (decimale uren)
-        '',                     // H: Dagtotaal (placeholder; herberekenDag_ vult in)
-        payload.note || ''      // I: Werk
+        payload.duration,       // F: Duur sessie
+        '',                     // G: Dagtotaal
+        payload.note || ''      // H: Werk
       ]);
       herberekenDag_(sheet, datum);
       updateMonthSummary(ss, maand, userTab);
@@ -301,38 +293,6 @@ function doPost(e) {
 }
 
 // ============================================================
-// MIGRATIE: PAUZE-KOLOM INVOEGEN IN BESTAANDE TABBLADEN
-// ============================================================
-
-/**
- * Zorgt dat een gebruikers-tabblad de nieuwe 9-kolomsindeling heeft (met Pauze op G).
- * Detecteert de oude 8-kolomsindeling (Dagtotaal op kolom 7) en voegt kolom G in.
- * Idempotent: als kolom G al 'Pauze' is, wordt niets gewijzigd.
- * Migreert NIET het Maandoverzicht-tabblad.
- *
- * @param {Sheet} sheet  Het gebruikers-tabblad om te controleren/migreren
- */
-function ensurePauzeKolom_(sheet) {
-  // Defensief: lege of ontbrekende sheet overslaan
-  if (!sheet || sheet.getLastRow() < 1) return;
-
-  var headerRij = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-
-  // Controleer of kolom 7 (index 6) al 'Pauze' is → dan is migratie al gedaan
-  if (headerRij[6] === 'Pauze') return;
-
-  // Controleer of de oude indeling herkend wordt: kolom 7 = 'Dagtotaal'
-  if (headerRij[6] === 'Dagtotaal') {
-    // Voeg een lege kolom in vóór kolom 7 (Dagtotaal schuift naar kolom 8)
-    sheet.insertColumnBefore(7);
-    // Schrijf de nieuwe kolomkop 'Pauze' op positie G (kolom 7)
-    sheet.getRange(1, 7).setValue('Pauze');
-    // Bestaande pauze-cellen blijven leeg (= 0), wat correct is voor historische data
-  }
-  // Onbekende indeling: niets doen (veilig)
-}
-
-// ============================================================
 // DAG HERBEREKENEN (hernummeren + dagtotaal)
 // ============================================================
 
@@ -340,8 +300,8 @@ function ensurePauzeKolom_(sheet) {
  * Herbouwt één dag na een toevoeging/bewerking/verwijdering:
  * - Sorteert alle sessies van die datum chronologisch op inkloktijd
  * - Hernummert kolom C (Sessie #) als 1..n
- * - Zet het dagtotaal (som van kolom F, netto) in kolom H van de eerste sessie,
- *   en maakt kolom H leeg bij de overige sessies
+ * - Zet het dagtotaal (som van kolom F) in kolom G van de eerste sessie,
+ *   en maakt kolom G leeg bij de overige sessies
  *
  * @param {Sheet}  sheet  Het tabblad van de gebruiker
  * @param {string} datum  Datum in dd/mm/yyyy formaat
@@ -369,7 +329,7 @@ function herberekenDag_(sheet, datum) {
 
   for (var j = 0; j < items.length; j++) {
     sheet.getRange(items[j].row, 3).setValue(j + 1);                 // Sessie #
-    sheet.getRange(items[j].row, 8).setValue(j === 0 ? totaal : ''); // Dagtotaal (kolom H)
+    sheet.getRange(items[j].row, 7).setValue(j === 0 ? totaal : ''); // Dagtotaal
   }
 }
 
@@ -467,8 +427,8 @@ function updateMonthSummary(ss, monthLabel, userTab) {
   for (var r = 1; r < sessiesData.length; r++) {
     var rij       = sessiesData[r];
     var rDatum    = normalizeDatum_(rij[0]);   // dd/mm/yyyy (robuust voor Date-cellen)
-    var rSessie   = Number(rij[2]);   // Sessie # (kolom C, index 2)
-    var rDagtot   = rij[7];          // Dagtotaal (kolom H, index 7 — was index 6)
+    var rSessie   = Number(rij[2]);   // Sessie #
+    var rDagtot   = rij[6];          // Dagtotaal (alleen gevuld bij sessie 1)
 
     // Controleer of deze rij bij de gevraagde maand hoort
     if (!datumHoortBijMaand(rDatum, maandInfo.jaar, maandInfo.maandNummer)) continue;
