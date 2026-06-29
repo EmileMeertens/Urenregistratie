@@ -1127,10 +1127,10 @@
         <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;">
           Tip: druk <strong>Enter</strong> om op te slaan · <strong>Shift+Enter</strong> voor een nieuwe regel
         </div>
+        <div id="workError" style="font-size:12px;color:var(--error);margin-top:8px;display:none;"></div>
       </div>
     </div>
     <div class="modal-footer" style="flex-wrap:wrap;gap:8px;">
-      <button class="btn" onclick="resolveWork('')">Overslaan</button>
       <button class="btn" id="workAdjustBtn" onclick="openAdjustModal()">Tijden aanpassen…</button>
       <button class="btn primary" id="workSaveBtn">Opslaan &amp; uitklokken</button>
     </div>
@@ -1167,19 +1167,15 @@
           </div>
         </div>
       </div>
-      <div class="form-group">
+      <div class="form-group" style="margin-bottom:0;">
         <label class="form-label" for="adjPause">Pauze (minuten)</label>
         <input class="form-input" type="number" id="adjPause" min="0" step="1" placeholder="0" />
-      </div>
-      <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label" for="adjNote">Werk-omschrijving</label>
-        <input class="form-input" type="text" id="adjNote" placeholder="bv. Verslag schrijven" />
         <div id="adjError" style="font-size:12px;color:var(--error);margin-top:8px;display:none;"></div>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeAdjustModal()">Annuleren</button>
-      <button class="btn primary" onclick="submitAdjustModal()">Bevestigen &amp; opslaan</button>
+      <button class="btn" onclick="closeAdjustModal()">Terug</button>
+      <button class="btn primary" onclick="submitAdjustModal()">Bevestigen</button>
     </div>
   </div>
 </div>
@@ -1919,25 +1915,19 @@ async function clockOut(active) {
     showToast('Sessie is korter dan 1 minuut — toch opgeslagen.', 'warning');
   }
 
-  // Sla de gemeten waarden op voor gebruik in de modals
+  // Sla de gemeten waarden op voor gebruik in de modals.
+  // De actieve sessie blijft "lopen" tot er definitief is opgeslagen.
   _pendingClockOut = {
     start:       start,
     end:         end,
     pauseHours:  pauseHours,
     duration:    duration,
     brutoMs:     brutoMs,
-    active:      active,
+    note:        '',
   };
 
-  // Vraag de werk-omschrijving (FEATURE 2)
-  const result = await askWorkDescription(start, end, pauseHours, duration);
-  if (result === null) {
-    // Gebruiker heeft "Tijden aanpassen" gekozen → adjust modal neemt het over
-    return;
-  }
-
-  // Direct opslaan met gemeten waarden
-  await finalizeClock(start, end, pauseHours, duration, result);
+  // Open de "Waar heb je aan gewerkt?"-modal (omschrijving verplicht)
+  openWorkModal();
 }
 
 // Slaat de sessie definitief op (gedeeld pad voor direct opslaan én aanpassen)
@@ -1974,8 +1964,8 @@ async function finalizeClock(start, end, pauseHours, duration, note) {
     note:      note || '',
   };
 
-  // Altijd lokaal opslaan
-  await lsAdapter.saveSession(sessionData);
+  // Lokaal opslaan + de dag herberekenen (sessie# en dagtotaal kloppen meteen)
+  localAddSession(sessionData);
 
   // Optioneel naar Sheets (action:'add' impliciet via saveSession)
   if (CONFIG.adapter === 'googlesheets') {
@@ -2522,6 +2512,9 @@ async function sheetRequest(payload) {
    ===================================================== */
 let currentLogYear  = new Date().getFullYear();
 let currentLogMonth = new Date().getMonth();
+// Onthoudt welke dagen uitgeklapt staan, zodat de werklog na een wijziging
+// (toevoegen/bewerken/verwijderen/uitklokken) zichtbaar bijgewerkt blijft.
+let _expandedDays = new Set();
 
 function prevMonth() {
   currentLogMonth--;
@@ -2628,22 +2621,34 @@ async function renderLog() {
 
   html += `</tbody></table>`;
   document.getElementById('logContent').innerHTML = html;
+
+  // Herstel eerder uitgeklapte dagen (alleen die nog bestaan in deze maand)
+  _expandedDays.forEach(rowId => {
+    if (document.getElementById(`icon-${rowId}`)) applyDayExpand(rowId, true);
+  });
+}
+
+// Klapt een dag open/dicht (zonder de onthouden-status te wijzigen)
+function applyDayExpand(rowId, open) {
+  const icon = document.getElementById(`icon-${rowId}`);
+  if (!icon) return;
+  icon.classList.toggle('open', open);
+  let i = 0;
+  while (true) {
+    const el = document.getElementById(`${rowId}-s${i}`);
+    if (!el) break;
+    el.classList.toggle('open', open);
+    i++;
+  }
 }
 
 function toggleDayExpand(rowId) {
   const icon = document.getElementById(`icon-${rowId}`);
   if (!icon) return;
-  const isOpen = icon.classList.contains('open');
-  icon.classList.toggle('open', !isOpen);
-
-  // Toon/verberg alle sessie-rijen voor deze dag
-  let i = 0;
-  while (true) {
-    const el = document.getElementById(`${rowId}-s${i}`);
-    if (!el) break;
-    el.classList.toggle('open', !isOpen);
-    i++;
-  }
+  const willOpen = !icon.classList.contains('open');
+  applyDayExpand(rowId, willOpen);
+  // Onthoud de status zodat ze een re-render overleeft
+  if (willOpen) _expandedDays.add(rowId); else _expandedDays.delete(rowId);
 }
 
 /* =====================================================
@@ -2692,96 +2697,89 @@ async function exportExcel() {
 }
 
 /* =====================================================
-   WERK-OMSCHRIJVING MODAL (bij uitklokken) — FEATURE 2
+   WERK-OMSCHRIJVING MODAL (bij uitklokken)
+   -----------------------------------------------------
+   Flow: clockOut → openWorkModal() → (optioneel) Tijden aanpassen
+   → terug naar werk-modal → Opslaan (omschrijving verplicht) → finalizeClock.
+   De Sheet wordt pas geschreven bij het definitieve opslaan.
    ===================================================== */
-let _workResolver = null;
 
-// Geeft een Promise terug die resolved met:
-//   - string (omschrijving) → direct opslaan
-//   - null                  → gebruiker koos "Tijden aanpassen…"
-function askWorkDescription(start, end, pauseHours, duration) {
-  return new Promise((resolve) => {
-    _workResolver = resolve;
-    const input = document.getElementById('workInput');
-    input.value = '';
+// Opent/heropent de "Waar heb je aan gewerkt?"-modal op basis van _pendingClockOut.
+function openWorkModal() {
+  if (!_pendingClockOut) return;
+  const { start, end, pauseHours, duration, note } = _pendingClockOut;
 
-    // Toon samenvatting van de gemeten sessie
-    const pauseMin = Math.round((pauseHours || 0) * 60);
-    const summaryEl = document.getElementById('workSummary');
-    if (summaryEl) {
-      summaryEl.innerHTML =
-        `<strong>${toHHMM(start)} – ${toHHMM(end)}</strong>` +
-        (pauseMin > 0 ? ` &nbsp;|&nbsp; Pauze: <strong>${pauseMin} min</strong>` : '') +
-        ` &nbsp;|&nbsp; Netto: <strong>${duration.toFixed(2)} u</strong>`;
-    }
+  const input = document.getElementById('workInput');
+  input.value = note || '';
+  document.getElementById('workError').style.display = 'none';
 
-    document.getElementById('workModal').classList.add('open');
-    setTimeout(() => input.focus(), 50);
-  });
-}
-
-// Sluit de modal en lost de Promise op met de gegeven waarde.
-function resolveWork(value) {
-  document.getElementById('workModal').classList.remove('open');
-  if (_workResolver) {
-    const r = _workResolver;
-    _workResolver = null;
-    r(value);
+  // Toon samenvatting van de (eventueel aangepaste) sessie
+  const pauseMin = Math.round((pauseHours || 0) * 60);
+  const summaryEl = document.getElementById('workSummary');
+  if (summaryEl) {
+    summaryEl.innerHTML =
+      `<strong>${toHHMM(start)} – ${toHHMM(end)}</strong>` +
+      (pauseMin > 0 ? ` &nbsp;|&nbsp; Pauze: <strong>${pauseMin} min</strong>` : '') +
+      ` &nbsp;|&nbsp; Netto: <strong>${duration.toFixed(2)} u</strong>`;
   }
+
+  document.getElementById('workModal').classList.add('open');
+  setTimeout(() => input.focus(), 50);
 }
 
-/* ===== BEVESTIG/AANPAS MODAL — FEATURE 2 ===== */
+// Definitief opslaan vanuit de werk-modal — omschrijving is VERPLICHT.
+function submitWork() {
+  if (!_pendingClockOut) return;
+  const note = document.getElementById('workInput').value.trim();
+  if (!note) {
+    const el = document.getElementById('workError');
+    el.textContent = 'Vul in waar je aan hebt gewerkt — dit is verplicht.';
+    el.style.display = 'block';
+    document.getElementById('workInput').focus();
+    return;
+  }
+  const { start, end, pauseHours, duration } = _pendingClockOut;
+  document.getElementById('workModal').classList.remove('open');
+  _pendingClockOut = null;
+  finalizeClock(start, end, pauseHours, duration, note);
+}
 
-// Opent de bevestig-modal vooringevuld met de gemeten waarden
+/* ===== BEVESTIG/AANPAS MODAL — subniveau "Tijden aanpassen" ===== */
+
+// Opent de aanpas-modal, vooringevuld met de huidige _pendingClockOut-waarden.
+// Schrijft NIET naar de Sheet; keert na bevestigen/terug terug naar de werk-modal.
 function openAdjustModal() {
   if (!_pendingClockOut) return;
-  const { start, end, pauseHours, duration } = _pendingClockOut;
-  const note = document.getElementById('workInput').value.trim();
-  // Bewaar de omschrijving zodat annuleren de sessie tóch met deze note opslaat
-  _pendingClockOut.note = note;
+  // Bewaar de tot nu toe getypte omschrijving zodat ze behouden blijft
+  _pendingClockOut.note = document.getElementById('workInput').value;
 
-  // Sluit work-modal (resolveWork(null) wordt NIET aangeroepen — we handelen zelf)
+  const { start, end, pauseHours } = _pendingClockOut;
   document.getElementById('workModal').classList.remove('open');
-  if (_workResolver) {
-    // Annuleer de promise zodat clockOut() niet verder gaat
-    const r = _workResolver;
-    _workResolver = null;
-    // Geef null terug → clockOut zal returnen zonder finalizeClock
-    r(null);
-  }
 
-  // Vul de modal
   document.getElementById('adjDate').value = toDateKey(start);
   setTimeInputs('adjStartH', 'adjStartM', toHHMM(start));
   setTimeInputs('adjEndH',   'adjEndM',   toHHMM(end));
   document.getElementById('adjPause').value = Math.round((pauseHours || 0) * 60);
-  document.getElementById('adjNote').value  = note;
   document.getElementById('adjError').style.display = 'none';
 
   document.getElementById('adjustModal').classList.add('open');
 }
 
-// Annuleren/sluiten van de aanpas-modal: de sessie is al uitgeklokt, dus
-// sla ze op met de oorspronkelijk gemeten waarden (géén dataverlies).
+// "Terug"/sluiten zonder wijzigen: keer terug naar de werk-modal (geen sheet-write).
 function closeAdjustModal() {
   const modal = document.getElementById('adjustModal');
-  // Niets doen als de aanpas-modal niet open is (bv. ESC tijdens de werk-modal)
-  if (!modal.classList.contains('open')) return;
+  if (!modal.classList.contains('open')) return; // bv. ESC tijdens werk-modal
   modal.classList.remove('open');
-  if (_pendingClockOut) {
-    const { start, end, pauseHours, duration, note } = _pendingClockOut;
-    _pendingClockOut = null;
-    finalizeClock(start, end, pauseHours, duration, note || '');
-  }
+  if (_pendingClockOut) openWorkModal();
 }
 
-async function submitAdjustModal() {
+// "Bevestigen": valideer + update _pendingClockOut en keer terug naar de werk-modal.
+function submitAdjustModal() {
   if (!_pendingClockOut) return;
 
   const startStr = getTimeInputs('adjStartH', 'adjStartM');
   const endStr   = getTimeInputs('adjEndH',   'adjEndM');
   const pauseMin = parseInt(document.getElementById('adjPause').value, 10) || 0;
-  const note     = document.getElementById('adjNote').value.trim();
   const dateKey  = document.getElementById('adjDate').value; // nl format dd/mm/yyyy
 
   function adjError(msg) {
@@ -2809,13 +2807,16 @@ async function submitAdjustModal() {
   const dateObj  = parseDateKey(dateKey);
   const [sh, sm] = startStr.split(':').map(Number);
   const [eh, em] = endStr.split(':').map(Number);
-  const adjStart = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), sh, sm, 0);
-  const adjEnd   = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), eh, em, 0);
+
+  // Werk de in behandeling zijnde sessie bij (nog NIET opslaan)
+  _pendingClockOut.start      = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), sh, sm, 0);
+  _pendingClockOut.end        = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), eh, em, 0);
+  _pendingClockOut.pauseHours = pauseHours;
+  _pendingClockOut.duration   = duration;
 
   document.getElementById('adjustModal').classList.remove('open');
-  _pendingClockOut = null;
-
-  await finalizeClock(adjStart, adjEnd, pauseHours, duration, note);
+  // Terug naar het subniveau "Waar heb je aan gewerkt?"
+  openWorkModal();
 }
 
 /* =====================================================
@@ -3010,14 +3011,12 @@ function init() {
   attachTimeInput(document.getElementById('adjStartH'), document.getElementById('adjStartM'));
   attachTimeInput(document.getElementById('adjEndH'),   document.getElementById('adjEndM'));
 
-  // Werk-omschrijving modal: opslaan-knop + Enter-toets
-  document.getElementById('workSaveBtn').addEventListener('click', function() {
-    resolveWork(document.getElementById('workInput').value.trim());
-  });
+  // Werk-omschrijving modal: opslaan-knop + Enter-toets (omschrijving verplicht)
+  document.getElementById('workSaveBtn').addEventListener('click', submitWork);
   document.getElementById('workInput').addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      resolveWork(this.value.trim());
+      submitWork();
     }
   });
 

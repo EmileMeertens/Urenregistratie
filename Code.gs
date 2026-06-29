@@ -50,12 +50,12 @@ function setSpreadsheetId() {
 
 // Versie-stempel — zichtbaar via doGet, zodat je kunt controleren welke code
 // daadwerkelijk gedeployed is. Hoog dit op bij elke wijziging.
-var CODE_VERSION      = 'v11-pauze-kolom';
+var CODE_VERSION      = 'v12-pauze-voor-duur';
 
 var SHEET_SESSIES     = 'Sessies'; // alleen nog fallback voor payload zonder userId
 var SHEET_MAAND       = 'Maandoverzicht';
 
-var HEADERS_SESSIES   = ['Datum', 'Dag', 'Sessie #', 'Inkloktijd', 'Uitkloktijd', 'Duur sessie', 'Pauze', 'Dagtotaal', 'Werk'];
+var HEADERS_SESSIES   = ['Datum', 'Dag', 'Sessie #', 'Inkloktijd', 'Uitkloktijd', 'Pauze', 'Duur sessie', 'Dagtotaal', 'Werk'];
 var HEADERS_MAAND     = ['Maand', 'Naam', 'Werkdagen', 'Totale uren', 'Gemiddelde uren per dag'];
 
 // Tabnamen die NOOIT een persoonlijk tabblad mogen worden
@@ -155,8 +155,8 @@ function getUserLog_(ss, userId) {
       session:  Number(rij[2]) || 0,
       clockIn:  String(rij[3] || ''),
       clockOut: String(rij[4] || ''),
-      duration: Number(rij[5]) || 0,        // F: Duur sessie (netto)
-      pause:    (rij[6] === '' || rij[6] === null) ? 0 : (Number(rij[6]) || 0), // G: Pauze
+      pause:    (rij[5] === '' || rij[5] === null) ? 0 : (Number(rij[5]) || 0), // F: Pauze
+      duration: Number(rij[6]) || 0,        // G: Duur sessie (netto)
       dayTotal: (rij[7] === '' || rij[7] === null) ? 0 : (Number(rij[7]) || 0), // H: Dagtotaal
       month:    maandInfo,
       note:     String(rij[8] || '')        // I: Werk
@@ -252,9 +252,9 @@ function doPost(e) {
         }
         sheet.getRange(eRow, 4).setValue(payload.clockIn);       // D: Inkloktijd
         sheet.getRange(eRow, 5).setValue(payload.clockOut);    // E: Uitkloktijd
-        sheet.getRange(eRow, 6).setValue(payload.duration);    // F: Duur sessie (netto)
-        sheet.getRange(eRow, 7).setValue(payload.pause || 0);  // G: Pauze (NIEUW)
-        sheet.getRange(eRow, 9).setValue(payload.note || '');  // I: Werk (was H)
+        sheet.getRange(eRow, 6).setValue(payload.pause || 0);  // F: Pauze
+        sheet.getRange(eRow, 7).setValue(payload.duration);    // G: Duur sessie (netto)
+        sheet.getRange(eRow, 9).setValue(payload.note || '');  // I: Werk
         herberekenDag_(sheet, datum);
         updateMonthSummary(ss, maand, userTab);
         return jsonResponse({ success: true, edited: true });
@@ -281,8 +281,8 @@ function doPost(e) {
         payload.session || 1,   // C: Sessie # (wordt zo herberekend)
         payload.clockIn,        // D: Inkloktijd
         payload.clockOut,       // E: Uitkloktijd
-        payload.duration,       // F: Duur sessie (netto, aangeleverd door frontend)
-        payload.pause || 0,     // G: Pauze (decimale uren)
+        payload.pause || 0,     // F: Pauze (decimale uren)
+        payload.duration,       // G: Duur sessie (netto, aangeleverd door frontend)
         '',                     // H: Dagtotaal (placeholder; herberekenDag_ vult in)
         payload.note || ''      // I: Werk
       ]);
@@ -318,18 +318,41 @@ function ensurePauzeKolom_(sheet) {
 
   var headerRij = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
-  // Controleer of kolom 7 (index 6) al 'Pauze' is → dan is migratie al gedaan
-  if (headerRij[6] === 'Pauze') return;
+  // Doel-indeling (v12): kolom F (index 5) = 'Pauze', kolom G (index 6) = 'Duur sessie'.
 
-  // Controleer of de oude indeling herkend wordt: kolom 7 = 'Dagtotaal'
-  if (headerRij[6] === 'Dagtotaal') {
-    // Voeg een lege kolom in vóór kolom 7 (Dagtotaal schuift naar kolom 8)
-    sheet.insertColumnBefore(7);
-    // Schrijf de nieuwe kolomkop 'Pauze' op positie G (kolom 7)
-    sheet.getRange(1, 7).setValue('Pauze');
-    // Bestaande pauze-cellen blijven leeg (= 0), wat correct is voor historische data
+  // Geval A: al correct → niets doen
+  if (headerRij[5] === 'Pauze' && headerRij[6] === 'Duur sessie') return;
+
+  // Geval B: originele 8-kolomsindeling (geen Pauze): F='Duur sessie', G='Dagtotaal'
+  if (headerRij[5] === 'Duur sessie' && headerRij[6] === 'Dagtotaal') {
+    // Voeg een lege kolom in vóór kolom 6 (Duur sessie schuift naar kolom 7)
+    sheet.insertColumnBefore(6);
+    sheet.getRange(1, 6).setValue('Pauze');
+    return;
+  }
+
+  // Geval C: oude v11-indeling: F='Duur sessie', G='Pauze' → verwissel kolom F en G
+  if (headerRij[5] === 'Duur sessie' && headerRij[6] === 'Pauze') {
+    swapKolommen_(sheet, 6, 7);
+    return;
   }
   // Onbekende indeling: niets doen (veilig)
+}
+
+/**
+ * Verwisselt twee volledige kolommen (inclusief headerrij) van een sheet.
+ *
+ * @param {Sheet}  sheet
+ * @param {number} c1  1-gebaseerde kolomindex
+ * @param {number} c2  1-gebaseerde kolomindex
+ */
+function swapKolommen_(sheet, c1, c2) {
+  var n = sheet.getLastRow();
+  if (n < 1) return;
+  var r1 = sheet.getRange(1, c1, n, 1).getValues();
+  var r2 = sheet.getRange(1, c2, n, 1).getValues();
+  sheet.getRange(1, c1, n, 1).setValues(r2);
+  sheet.getRange(1, c2, n, 1).setValues(r1);
 }
 
 // ============================================================
@@ -353,7 +376,7 @@ function herberekenDag_(sheet, datum) {
 
   for (var r = 1; r < data.length; r++) {
     if (normalizeDatum_(data[r][0]) === doel) {
-      items.push({ row: r + 1, clockIn: String(data[r][3] || ''), duur: Number(data[r][5]) || 0 });
+      items.push({ row: r + 1, clockIn: String(data[r][3] || ''), duur: Number(data[r][6]) || 0 }); // G: Duur sessie
     }
   }
   if (items.length === 0) return;
