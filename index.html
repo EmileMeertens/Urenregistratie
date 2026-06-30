@@ -219,6 +219,25 @@
       animation: sync-spin 0.7s linear infinite;
     }
     @keyframes sync-spin { to { transform: rotate(360deg); } }
+    #syncBtn.spinning { animation: sync-spin 0.7s linear infinite; }
+
+    /* ===== SKELETON LOADERS ===== */
+    .skel-wrap { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
+    .skel-row {
+      display: flex; gap: 12px; align-items: center;
+      padding: 12px 4px;
+      border-bottom: 1px solid var(--border);
+    }
+    .skel {
+      height: 14px; border-radius: 6px;
+      background: linear-gradient(90deg, var(--bg-hover) 25%, var(--bg-elevated) 37%, var(--bg-hover) 63%);
+      background-size: 400% 100%;
+      animation: skel-shimmer 1.3s ease-in-out infinite;
+    }
+    .skel-a { width: 22%; }
+    .skel-b { width: 40%; }
+    .skel-c { width: 18%; margin-left: auto; }
+    @keyframes skel-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
 
     /* ===== CARDS ===== */
     .card {
@@ -1299,6 +1318,7 @@
       <button class="user-chip" onclick="changeIdentity()" title="Naam wijzigen" aria-label="Aangemeld als">
         <span class="user-dot">&#9679;</span><span id="userBadge">—</span>
       </button>
+      <button class="icon-btn" onclick="manualSync()" title="Synchroniseren met de Sheet" id="syncBtn" aria-label="Synchroniseren">&#8635;</button>
       <button class="icon-btn" onclick="openSettings()" title="Instellingen" aria-label="Instellingen">&#9881;</button>
       <button class="icon-btn" onclick="toggleTheme()" title="Thema wisselen" id="themeToggle" aria-label="Thema wisselen">&#9790;</button>
     </div>
@@ -1687,12 +1707,12 @@ async function refreshForUser() {
     stopTimer();
     updateClockUI(false);
   }
-  // Direct lokale data tonen (snel, werkt offline)
+  // Direct lokale data tonen (snel, werkt offline; ook fallback als sync niet draait)
   updateStats();
   renderLog();
   updatePendingCount();
-  // Daarna cross-device historie uit de Sheet ophalen (best-effort)
-  await syncFromSheet();
+  // Daarna cross-device historie uit de Sheet ophalen, met skeleton
+  await syncFromSheet({ skeleton: true });
 }
 
 /* =====================================================
@@ -1707,14 +1727,37 @@ async function refreshForUser() {
 function setSyncIndicator(on) {
   const el = document.getElementById('syncChip');
   if (el) el.style.display = on ? 'inline-flex' : 'none';
+  const btn = document.getElementById('syncBtn');
+  if (btn) btn.classList.toggle('spinning', on);
 }
 
-async function syncFromSheet() {
+// Toont skeleton-placeholders in het log-gebied tijdens een laad-actie
+function showLogSkeleton(rows = 4) {
+  let sk = '';
+  for (let i = 0; i < rows; i++) {
+    sk += `<div class="skel-row"><div class="skel skel-a"></div><div class="skel skel-b"></div><div class="skel skel-c"></div></div>`;
+  }
+  const el = document.getElementById('logContent');
+  if (el) el.innerHTML = `<div class="skel-wrap">${sk}</div>`;
+}
+
+// Handmatige sync via de knop bovenaan
+async function manualSync() {
+  await syncFromSheet({ skeleton: true });
+  showToast('Gesynchroniseerd met de Sheet.', 'success');
+}
+
+// opts.silent  → geen indicator/skeleton (voor de achtergrond-poll)
+// opts.skeleton → toon skeleton in het log-gebied tijdens het ophalen
+async function syncFromSheet(opts) {
+  opts = opts || {};
   if (CONFIG.adapter !== 'googlesheets') return;
   const url = CONFIG.googleSheets.endpointUrl;
   if (!url || url.indexOf('PLAK_HIER') === 0 || !USER.userId) return;
 
-  setSyncIndicator(true);
+  if (!opts.silent) setSyncIndicator(true);
+  if (opts.skeleton) showLogSkeleton();
+
   try {
     const resp = await fetch(
       `${url}?action=log&userId=${encodeURIComponent(USER.userId)}`,
@@ -1725,15 +1768,58 @@ async function syncFromSheet() {
     if (!data || !data.success || !Array.isArray(data.sessions)) return;
 
     const changed = replaceLogFromSheet(data.sessions);
-    if (changed) {
+    reconcileActiveSession(data.active || null);
+    // Altijd renderen na een skeleton/handmatige sync; bij stille poll alleen
+    // als er iets veranderd is (zo blijven geopende dagen open).
+    if (changed || opts.skeleton || !opts.silent) {
       updateStats();
       renderLog();
     }
   } catch (e) {
     // Offline of endpoint onbereikbaar → lokale data blijft als fallback staan
+    if (opts.skeleton) renderLog(); // skeleton weer vervangen door bestaande data
   } finally {
-    setSyncIndicator(false);
+    if (!opts.silent) setSyncIndicator(false);
   }
+}
+
+// Stemt de lokaal-lopende sessie af op wat de backend zegt (cross-device).
+function reconcileActiveSession(backendActive) {
+  const local = getActiveSession();
+
+  if (backendActive && backendActive.startTime) {
+    if (!local) {
+      // Sessie loopt op een ander toestel → hier hervatten
+      const resumed = Object.assign({}, backendActive, { resumed: true });
+      setActiveSession(resumed);
+      const start = new Date(resumed.startTime);
+      startTimer(start);
+      updateClockUI(true, start);
+      if (typeof updatePauseBtnUI === 'function') updatePauseBtnUI(resumed);
+      if (typeof updateStatusBadge === 'function') updateStatusBadge(resumed);
+    }
+    // (loopt al lokaal → niets doen, blijft gewoon lopen)
+  } else {
+    // Backend heeft geen lopende sessie.
+    // Alleen een HIER-hervatte sessie stoppen (die is elders uitgeklokt);
+    // een lokaal gestarte sessie laten we staan (vermijdt race bij net inklokken).
+    if (local && local.resumed) {
+      clearActiveSession();
+      stopTimer();
+      updateClockUI(false);
+    }
+  }
+}
+
+// Stuurt de lopende sessie naar de backend (best-effort, blokkeert de UI niet)
+function pushActiveToSheet(active) {
+  if (CONFIG.adapter !== 'googlesheets' || !USER.userId) return;
+  sheetRequest({ action: 'clockin', userId: USER.userId, active: active }).catch(() => {});
+}
+
+function clearActiveOnSheet() {
+  if (CONFIG.adapter !== 'googlesheets' || !USER.userId) return;
+  sheetRequest({ action: 'clearactive', userId: USER.userId }).catch(() => {});
 }
 
 // Vervangt de lokale log door de Sheet-sessies (autoritatief). Nog niet
@@ -1888,6 +1974,8 @@ async function clockIn() {
   startTimer(now);
   updateClockUI(true, now);
   updateStats();
+  // Registreer de lopende sessie in de backend (cross-device)
+  pushActiveToSheet(getActiveSession());
   showToast(`Ingeklokt om ${toHHMM(now)}`, 'success');
 }
 
@@ -1910,6 +1998,8 @@ function togglePause() {
   setActiveSession(active);
   updatePauseBtnUI(active);
   updateStatusBadge(active);
+  // Pauze-status ook in de backend bijwerken (cross-device)
+  pushActiveToSheet(active);
 }
 
 // Past de pauze-knoptekst en status-badge aan
@@ -1966,6 +2056,7 @@ async function clockOut(active) {
 // Slaat de sessie definitief op (gedeeld pad voor direct opslaan én aanpassen)
 async function finalizeClock(start, end, pauseHours, duration, note) {
   clearActiveSession();
+  clearActiveOnSheet();   // lopende sessie ook in de backend afsluiten (cross-device)
   stopTimer();
   updateClockUI(false);
 
@@ -2002,6 +2093,7 @@ async function finalizeClock(start, end, pauseHours, duration, note) {
 
   // Optioneel naar Sheets (action:'add' impliciet via saveSession)
   if (CONFIG.adapter === 'googlesheets') {
+    showLogSkeleton(); // toon skeleton tot de sessie verzonden is
     const payload = Object.assign({ action: 'add' }, sessionData);
     const sheetsAdapter = new GoogleSheetsAdapter();
     try {
@@ -2448,6 +2540,7 @@ async function submitSessionForm() {
   } else {
     localAddSession(entry);
     if (CONFIG.adapter === 'googlesheets') {
+      showLogSkeleton(); // skeleton tot de nieuwe sessie verzonden is
       const payload = Object.assign({ action: 'add' }, entry);
       try {
         await new GoogleSheetsAdapter().saveSession(payload);
@@ -3068,6 +3161,14 @@ function init() {
     // Nog geen naam bekend → blokkeer met onboarding tot er een geldig adres is
     showOnboarding();
   }
+
+  // Achtergrond-poll: houdt log + lopende sessie cross-device actueel.
+  // Stil (geen indicator/skeleton). Niet pollen tijdens een open modal.
+  setInterval(function () {
+    if (!USER.userId) return;
+    if (document.querySelector('.modal-backdrop.open')) return;
+    syncFromSheet({ silent: true });
+  }, 45000);
 }
 
 document.addEventListener('DOMContentLoaded', init);

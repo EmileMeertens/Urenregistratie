@@ -50,7 +50,7 @@ function setSpreadsheetId() {
 
 // Versie-stempel — zichtbaar via doGet, zodat je kunt controleren welke code
 // daadwerkelijk gedeployed is. Hoog dit op bij elke wijziging.
-var CODE_VERSION      = 'v12-pauze-voor-duur';
+var CODE_VERSION      = 'v13-active-crossdevice';
 
 var SHEET_SESSIES     = 'Sessies'; // alleen nog fallback voor payload zonder userId
 var SHEET_MAAND       = 'Maandoverzicht';
@@ -99,7 +99,11 @@ function doGet(e) {
     if (!p.userId) return jsonResponse({ success: false, error: 'userId ontbreekt.' });
     if (!ss)       return jsonResponse({ success: false, error: 'Spreadsheet niet gevonden (stel SPREADSHEET_ID in).' });
     try {
-      return jsonResponse({ success: true, sessions: getUserLog_(ss, p.userId) });
+      var tab = userTabNaam_(p.userId);
+      var actiefRaw = tab ? PropertiesService.getScriptProperties().getProperty('active_' + tab) : null;
+      var actief = null;
+      if (actiefRaw) { try { actief = JSON.parse(actiefRaw); } catch (e2) { actief = null; } }
+      return jsonResponse({ success: true, sessions: getUserLog_(ss, p.userId), active: actief });
     } catch (err) {
       return jsonResponse({ success: false, error: 'Kon log niet lezen: ' + err.message });
     }
@@ -208,6 +212,19 @@ function doPost(e) {
     var userTab = userTabNaam_(payload.userId);
     if (!userTab) {
       return jsonResponse({ success: false, error: 'Ongeldige userId.' });
+    }
+
+    // ===== ACTIEVE (lopende) SESSIE — cross-device =====
+    // Opgeslagen als Script Property zodat een sessie die op het ene toestel
+    // loopt, op een ander toestel zichtbaar/hervatbaar is. Geen sheet nodig.
+    if (action === 'clockin') {
+      PropertiesService.getScriptProperties()
+        .setProperty('active_' + userTab, JSON.stringify(payload.active || {}));
+      return jsonResponse({ success: true });
+    }
+    if (action === 'clearactive') {
+      PropertiesService.getScriptProperties().deleteProperty('active_' + userTab);
+      return jsonResponse({ success: true });
     }
 
     // --- 2. Open spreadsheet (centraal bepaald via Script Property SPREADSHEET_ID) ---
