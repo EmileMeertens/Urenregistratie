@@ -197,6 +197,29 @@
     .user-chip:hover { background: var(--bg-hover); border-color: var(--border-strong); }
     .user-chip .user-dot { color: var(--accent); font-size: 10px; }
 
+    .sync-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 38px;
+      padding: 0 12px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .sync-spinner {
+      width: 13px; height: 13px;
+      border: 2px solid var(--border-strong);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: sync-spin 0.7s linear infinite;
+    }
+    @keyframes sync-spin { to { transform: rotate(360deg); } }
+
     /* ===== CARDS ===== */
     .card {
       background: var(--bg-surface);
@@ -1270,6 +1293,9 @@
       </div>
     </div>
     <div class="topbar-actions">
+      <span class="sync-chip" id="syncChip" style="display:none;">
+        <span class="sync-spinner"></span><span>Synchroniseren…</span>
+      </span>
       <button class="user-chip" onclick="changeIdentity()" title="Naam wijzigen" aria-label="Aangemeld als">
         <span class="user-dot">&#9679;</span><span id="userBadge">—</span>
       </button>
@@ -1673,14 +1699,22 @@ async function refreshForUser() {
    CROSS-DEVICE SYNC — historie uit de Sheet ophalen
    ===================================================== */
 
-// Haalt alle sessies van de huidige gebruiker uit de Sheet en voegt ze samen
-// met de lokale log. De Sheet is autoritatief; lokale (nog niet verzonden)
-// sessies blijven behouden. Faalt stil bij geen internet.
+// De Google Sheet is de BRON VAN WAARHEID. Bij inloggen/sync wordt de lokale
+// log VERVANGEN door wat in de Sheet staat — ongeacht wat de browser had.
+// Alleen nog niet-verzonden (pending) sessies blijven behouden, zodat offline
+// werk niet verloren gaat. Faalt de fetch (offline), dan blijft de lokale data
+// staan als veilige fallback.
+function setSyncIndicator(on) {
+  const el = document.getElementById('syncChip');
+  if (el) el.style.display = on ? 'inline-flex' : 'none';
+}
+
 async function syncFromSheet() {
   if (CONFIG.adapter !== 'googlesheets') return;
   const url = CONFIG.googleSheets.endpointUrl;
   if (!url || url.indexOf('PLAK_HIER') === 0 || !USER.userId) return;
 
+  setSyncIndicator(true);
   try {
     const resp = await fetch(
       `${url}?action=log&userId=${encodeURIComponent(USER.userId)}`,
@@ -1690,42 +1724,41 @@ async function syncFromSheet() {
     const data = await resp.json();
     if (!data || !data.success || !Array.isArray(data.sessions)) return;
 
-    const changed = mergeSheetLog(data.sessions);
+    const changed = replaceLogFromSheet(data.sessions);
     if (changed) {
       updateStats();
       renderLog();
     }
   } catch (e) {
-    // Offline of endpoint onbereikbaar → lokale data blijft gewoon staan
+    // Offline of endpoint onbereikbaar → lokale data blijft als fallback staan
+  } finally {
+    setSyncIndicator(false);
   }
 }
 
-// Voegt sessies uit de Sheet samen met de lokale log (op sleutel datum|sessie).
+// Vervangt de lokale log door de Sheet-sessies (autoritatief). Nog niet
+// verzonden sessies uit de pending-queue (op sleutel datum|inkloktijd niet in
+// de Sheet aanwezig) worden toegevoegd zodat offline werk behouden blijft.
 // Geeft true terug als de lokale log gewijzigd is.
-function mergeSheetLog(sheetSessions) {
-  const local = JSON.parse(localStorage.getItem(STORAGE_KEYS.log) || '[]');
-  const keyOf = s => `${s.date}|${s.session}`;
-  const byKey = {};
+function replaceLogFromSheet(sheetSessions) {
+  const keyOf = s => `${s.date}|${s.clockIn}`;
+  const inSheet = new Set(sheetSessions.map(keyOf));
 
-  // Sheet is autoritatief voor zijn eigen sleutels; zorg dat `pause` altijd aanwezig is (default 0)
-  sheetSessions.forEach(s => { byKey[keyOf(s)] = Object.assign({ pause: 0 }, s); });
-  // Lokale entries die (nog) niet in de Sheet staan behouden (bv. pending)
-  local.forEach(s => {
-    const k = keyOf(s);
-    if (!(k in byKey)) byKey[k] = Object.assign({ pause: 0 }, s);
-  });
+  const pending = getPending().filter(p => !inSheet.has(keyOf(p)));
+  const newLog = sheetSessions
+    .map(s => Object.assign({ pause: 0 }, s))
+    .concat(pending);
 
-  const merged = Object.keys(byKey).map(k => byKey[k]);
-  merged.sort((a, b) => {
+  newLog.sort((a, b) => {
     const diff = parseDateKey(a.date) - parseDateKey(b.date);
     if (diff !== 0) return diff;
-    return (a.session || 0) - (b.session || 0);
+    return String(a.clockIn).localeCompare(String(b.clockIn));
   });
 
-  const before = JSON.stringify(local);
-  const after  = JSON.stringify(merged);
+  const before = localStorage.getItem(STORAGE_KEYS.log) || '[]';
+  const after  = JSON.stringify(newLog);
   if (before === after) return false;
-  localStorage.setItem(STORAGE_KEYS.log, JSON.stringify(merged));
+  localStorage.setItem(STORAGE_KEYS.log, after);
   return true;
 }
 
