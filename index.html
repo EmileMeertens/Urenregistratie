@@ -1023,13 +1023,48 @@
     }
 
     /* ===== RESPONSIVE ===== */
-    @media (max-width: 480px) {
+    @media (max-width: 600px) {
+      .app-wrapper { padding: 16px 12px 72px; }
+
+      /* Topbar compacter zodat niets overloopt */
+      .topbar { margin-bottom: 18px; gap: 8px; }
+      .brand { gap: 8px; }
+      .brand-logo { width: 32px; height: 32px; }
+      .brand-name { font-size: 16px; }
+      .brand-sub { display: none; }
+      .topbar-actions { gap: 6px; }
+      .user-chip { max-width: 116px; padding: 0 10px; }
+      .sync-chip { padding: 0 10px; }
+      .sync-chip > span:last-child { display: none; } /* op mobiel enkel het spinnertje */
+
+      /* Grotere tikdoelen voor vingers */
+      .icon-btn { width: 40px; height: 40px; }
+      .row-btn { width: 32px; height: 32px; font-size: 15px; }
+
       .hero { padding: 20px; }
       .live-clock { font-size: 28px; }
       .session-timer { font-size: 32px; }
+
+      /* Weekdoel: invoer op een eigen regel */
+      .goal-edit { width: 100%; }
+      .goal-input { flex: 1; width: auto; }
+
+      /* Log */
+      .log-header { padding: 14px 16px; }
+      .log-actions { width: 100%; }
+      .log-actions .btn-sm { flex: 1; justify-content: center; }
+      #logContent { overflow-x: auto; -webkit-overflow-scrolling: touch; }
       .log-table th, .log-table td { padding: 10px 12px; }
-      .session-row td { padding: 8px 12px 8px 24px; }
+      .session-row td { padding: 8px 12px 8px 20px; }
+
       .modal-body, .modal-footer, .modal-header { padding-left: 16px; padding-right: 16px; }
+    }
+
+    /* Heel smalle schermen: nog wat compacter */
+    @media (max-width: 380px) {
+      .user-chip { max-width: 92px; }
+      .live-clock { font-size: 24px; }
+      .session-timer { font-size: 28px; }
     }
 
     /* ===== TEST RESULT ===== */
