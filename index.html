@@ -8,9 +8,6 @@
   <!-- Satoshi font via Fontshare -->
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet" />
 
-  <!-- SheetJS voor Excel export -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
   <style>
     /* ===== CSS CUSTOM PROPERTIES / THEMING ===== */
     :root {
@@ -219,7 +216,6 @@
       animation: sync-spin 0.7s linear infinite;
     }
     @keyframes sync-spin { to { transform: rotate(360deg); } }
-    #syncBtn.spinning { animation: sync-spin 0.7s linear infinite; }
 
     /* ===== SKELETON LOADERS ===== */
     .skel-wrap { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
@@ -479,6 +475,57 @@
     }
     .goal-bar-fill.reached { background: #22c55e; }
     .goal-meta { margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+
+    /* ===== GRAFIEK ===== */
+    .chart-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .chart-top {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+    }
+    .chart-title { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+
+    /* Segmented control voor week/maand */
+    .seg {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    .seg-btn {
+      padding: 6px 12px;
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 600;
+      border: none;
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .seg-btn + .seg-btn { border-left: 1px solid var(--border); }
+    .seg-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .seg-btn.active { background: var(--accent); color: var(--accent-text); }
+
+    /* SVG-elementen: dunne marks, terughoudend raster */
+    .chart-svg { display: block; width: 100%; height: auto; }
+    .chart-grid { stroke: var(--border); stroke-width: 1; }
+    .chart-bar  { fill: var(--accent); }
+    .chart-hit  { fill: transparent; cursor: pointer; }
+    .chart-hit:hover + .chart-bar, .chart-bar:hover { fill: var(--teal-400); }
+    .chart-tick { fill: var(--text-muted); font-size: 10px; font-family: var(--font); }
+    .chart-val  { fill: var(--text-secondary); font-size: 10px; font-weight: 600;
+                  font-family: var(--font); font-variant-numeric: tabular-nums; }
+    .chart-empty {
+      text-align: center; color: var(--text-muted);
+      font-size: 13px; padding: 28px 0;
+    }
 
     /* ===== LOG SECTIE ===== */
     .log-section {
@@ -921,6 +968,7 @@
     .toast.success { border-color: rgba(34,197,94,0.4); }
     .toast.warning { border-color: rgba(245,158,11,0.4); }
     .toast.error   { border-color: rgba(239,68,68,0.4); }
+    .toast.info    { border-color: var(--border-strong); }
 
     .toast-icon { font-size: 16px; flex-shrink: 0; }
 
@@ -1431,6 +1479,18 @@
     <div class="goal-meta"><span id="goalText">Stel een weekdoel in om je voortgang te zien.</span></div>
   </div>
 
+  <!-- Urenoverzicht grafiek -->
+  <div class="chart-card">
+    <div class="chart-top">
+      <span class="chart-title">Gewerkte uren</span>
+      <div class="seg" role="group" aria-label="Periode">
+        <button class="seg-btn" id="segWeek"  onclick="setChartMode('week')">Per week</button>
+        <button class="seg-btn" id="segMonth" onclick="setChartMode('month')">Per maand</button>
+      </div>
+    </div>
+    <div id="chartArea"></div>
+  </div>
+
   <!-- Log sectie -->
   <div class="log-section">
     <div class="log-header">
@@ -1760,10 +1820,11 @@ async function refreshForUser() {
 // werk niet verloren gaat. Faalt de fetch (offline), dan blijft de lokale data
 // staan als veilige fallback.
 function setSyncIndicator(on) {
+  // De "Synchroniseren…"-chip toont de voortgang; de knop zelf draait bewust niet.
   const el = document.getElementById('syncChip');
   if (el) el.style.display = on ? 'inline-flex' : 'none';
   const btn = document.getElementById('syncBtn');
-  if (btn) btn.classList.toggle('spinning', on);
+  if (btn) btn.disabled = !!on;
 }
 
 // Toont skeleton-placeholders in het log-gebied tijdens een laad-actie
@@ -1835,21 +1896,35 @@ function reconcileActiveSession(backendActive) {
     }
     // (loopt al lokaal → niets doen, blijft gewoon lopen)
   } else {
-    // Backend heeft geen lopende sessie.
-    // Alleen een HIER-hervatte sessie stoppen (die is elders uitgeklokt);
-    // een lokaal gestarte sessie laten we staan (vermijdt race bij net inklokken).
-    if (local && local.resumed) {
+    // Backend heeft geen lopende sessie → elders uitgeklokt.
+    // Stop de lokale timer alleen als de backend deze sessie ooit gekend heeft
+    // (hier hervat, of succesvol doorgegeven bij het inklokken). Een sessie die
+    // nooit is doorgekomen (offline) laten we staan, zodat er geen uren sneuvelen.
+    if (local && (local.resumed || local.synced)) {
       clearActiveSession();
       stopTimer();
       updateClockUI(false);
+      if (typeof updateStatusBadge === 'function') updateStatusBadge(null);
+      showToast('Sessie is op een ander toestel afgesloten.', 'info');
     }
   }
 }
 
-// Stuurt de lopende sessie naar de backend (best-effort, blokkeert de UI niet)
+// Stuurt de lopende sessie naar de backend (best-effort, blokkeert de UI niet).
+// Bij succes markeren we de lokale sessie als 'synced': pas dán mag een andere
+// toestel-uitklok deze sessie hier stoppen. Zo wordt een sessie die (door geen
+// internet) nooit is doorgegeven, nooit per ongeluk lokaal afgebroken.
 function pushActiveToSheet(active) {
   if (CONFIG.adapter !== 'googlesheets' || !USER.userId) return;
-  sheetRequest({ action: 'clockin', userId: USER.userId, active: active }).catch(() => {});
+  sheetRequest({ action: 'clockin', userId: USER.userId, active: active })
+    .then(() => {
+      const cur = getActiveSession();
+      if (cur && cur.startTime === active.startTime) {
+        cur.synced = true;
+        setActiveSession(cur);
+      }
+    })
+    .catch(() => {});
 }
 
 function clearActiveOnSheet() {
@@ -2312,6 +2387,7 @@ async function updateStats() {
   document.getElementById('statAvg').textContent    = avgPerDay.toFixed(2);
 
   renderGoalProgress(weekTotal);
+  renderChart(); // volgt dezelfde (uit de Sheet gesynchroniseerde) log
 }
 
 /* =====================================================
@@ -2360,6 +2436,140 @@ function renderGoalProgress(weekTotal) {
   } else {
     text.textContent = `${weekTotal.toFixed(2)} u van ${goal} u — nog ${(goal - weekTotal).toFixed(2)} u te gaan.`;
   }
+}
+
+/* =====================================================
+   GRAFIEK — gewerkte uren per week / per maand
+   Leest dezelfde lokale log als de rest van de app; die is na elke sync
+   een exacte spiegel van de Google Sheet, dus de grafiek volgt de Sheet.
+   ===================================================== */
+const CHART_MODE_KEY = 'urentracker_chartmode';
+
+function getChartMode() {
+  return localStorage.getItem(CHART_MODE_KEY) === 'month' ? 'month' : 'week';
+}
+
+function setChartMode(mode) {
+  localStorage.setItem(CHART_MODE_KEY, mode);
+  renderChart();
+}
+
+// Rondt de y-as af naar een "mooi" maximum (1, 2, 2.5, 5, 10 × macht van 10)
+function niceMax(v) {
+  if (!v || v <= 0) return 1;
+  const pow = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / pow;
+  const m = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10;
+  return m * pow;
+}
+
+// Staaf met afgeronde bovenkant, verankerd op de nullijn
+function barPath(x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, w / 2, h));
+  return `M${x},${y + h} L${x},${y + r} Q${x},${y} ${x + r},${y} `
+       + `L${x + w - r},${y} Q${x + w},${y} ${x + w},${y + r} L${x + w},${y + h} Z`;
+}
+
+// Bouwt de periodes (laatste 8 weken of 6 maanden) met hun uren-totaal
+async function getChartData(mode) {
+  const log = await new LocalStorageAdapter().loadLog();
+  const now = new Date();
+  const buckets = [];
+
+  if (mode === 'month') {
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      buckets.push({
+        key:   `${d.getFullYear()}-${d.getMonth()}`,
+        label: NL_MONTHS_SHORT[d.getMonth()],
+        full:  `${NL_MONTHS_FULL[d.getMonth()]} ${d.getFullYear()}`,
+        value: 0,
+      });
+    }
+    log.forEach(s => {
+      const d = parseDateKey(s.date);
+      const b = buckets.find(x => x.key === `${d.getFullYear()}-${d.getMonth()}`);
+      if (b) b.value += s.duration || 0;
+    });
+  } else {
+    for (let i = 7; i >= 0; i--) {
+      const ws = getWeekStart(new Date(now.getFullYear(), now.getMonth(), now.getDate() - i * 7));
+      const we = new Date(ws); we.setDate(we.getDate() + 6);
+      buckets.push({
+        key:   toDateKey(ws),
+        label: `${pad2(ws.getDate())}/${pad2(ws.getMonth() + 1)}`,
+        full:  `Week ${pad2(ws.getDate())}/${pad2(ws.getMonth() + 1)} – ${pad2(we.getDate())}/${pad2(we.getMonth() + 1)}`,
+        value: 0,
+      });
+    }
+    log.forEach(s => {
+      const b = buckets.find(x => x.key === toDateKey(getWeekStart(parseDateKey(s.date))));
+      if (b) b.value += s.duration || 0;
+    });
+  }
+
+  buckets.forEach(b => { b.value = Math.round(b.value * 100) / 100; });
+  return buckets;
+}
+
+async function renderChart() {
+  const area = document.getElementById('chartArea');
+  if (!area) return;
+
+  const mode = getChartMode();
+  const wBtn = document.getElementById('segWeek');
+  const mBtn = document.getElementById('segMonth');
+  if (wBtn) wBtn.classList.toggle('active', mode === 'week');
+  if (mBtn) mBtn.classList.toggle('active', mode === 'month');
+
+  const data = await getChartData(mode);
+  if (!data.some(d => d.value > 0)) {
+    area.innerHTML = `<div class="chart-empty">Nog geen uren in deze periode.</div>`;
+    return;
+  }
+
+  // Geometrie: de viewBox neemt de échte containerbreedte over, zodat de
+  // grafiek 1:1 rendert en de hoogte constant blijft op brede schermen.
+  const W = Math.max(320, Math.round(area.clientWidth || 560));
+  const H = 210, padL = 34, padR = 8, padT = 18, padB = 28;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const yMax  = niceMax(Math.max(...data.map(d => d.value)));
+  const n     = data.length;
+  const slot  = plotW / n;
+  const barW  = Math.min(40, slot - 8); // laat ≥2px lucht tussen staven
+  const yOf   = v => padT + plotH - (v / yMax) * plotH;
+
+  let svg = `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="Gewerkte uren ${mode === 'week' ? 'per week' : 'per maand'}">`;
+
+  // Raster + y-as labels (0, midden, max)
+  [0, 0.5, 1].forEach(f => {
+    const v = yMax * f, y = yOf(v);
+    svg += `<line class="chart-grid" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" />`;
+    svg += `<text class="chart-tick" x="${padL - 6}" y="${y + 3}" text-anchor="end">${v % 1 ? v.toFixed(1) : v}</text>`;
+  });
+
+  data.forEach((d, i) => {
+    const cx = padL + slot * i + slot / 2;
+    const x  = cx - barW / 2;
+    const y  = yOf(d.value);
+    const h  = padT + plotH - y;
+
+    if (d.value > 0) {
+      svg += `<path class="chart-bar" d="${barPath(x, y, barW, h, 4)}" />`;
+      if (barW >= 22) {
+        svg += `<text class="chart-val" x="${cx}" y="${y - 5}" text-anchor="middle">${parseFloat(d.value.toFixed(2))}</text>`;
+      }
+    }
+    // X-as label
+    svg += `<text class="chart-tick" x="${cx}" y="${H - 8}" text-anchor="middle">${escapeHtml(d.label)}</text>`;
+    // Ruim trefvlak over de volle hoogte, met native tooltip
+    svg += `<rect class="chart-hit" x="${padL + slot * i}" y="${padT}" width="${slot}" height="${plotH}">`
+        +  `<title>${escapeHtml(d.full)}: ${d.value.toFixed(2)} u</title></rect>`;
+  });
+
+  svg += `</svg>`;
+  area.innerHTML = svg;
 }
 
 /* =====================================================
@@ -2813,51 +3023,6 @@ function toggleDayExpand(rowId) {
 }
 
 /* =====================================================
-   EXCEL EXPORT
-   ===================================================== */
-async function exportExcel() {
-  if (typeof XLSX === 'undefined') {
-    showToast('SheetJS library niet geladen. Controleer uw internetverbinding.', 'error');
-    return;
-  }
-
-  const lsAdapter = new LocalStorageAdapter();
-  const log = await lsAdapter.loadLog();
-
-  if (log.length === 0) {
-    showToast('Geen sessies om te exporteren.', 'warning');
-    return;
-  }
-
-  const rows = [
-    ['Datum', 'Dag', 'Sessie', 'Inklokken', 'Uitklokken', 'Pauze (min)', 'Duur netto (u)', 'Dagtotaal (u)', 'Maand', 'Werk']
-  ];
-
-  for (const s of log) {
-    const pauseMin = Math.round((s.pause || 0) * 60);
-    rows.push([
-      s.date, s.day, s.session, s.clockIn, s.clockOut,
-      pauseMin, s.duration, s.dayTotal, s.month, s.note || ''
-    ]);
-  }
-
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-
-  // Kolombreedte
-  ws['!cols'] = [
-    {wch:12},{wch:10},{wch:8},{wch:12},{wch:12},{wch:13},{wch:16},{wch:15},{wch:16},{wch:40}
-  ];
-
-  XLSX.utils.book_append_sheet(wb, ws, 'Sessies');
-
-  const now = new Date();
-  const fname = `uren-${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(now.getDate())}.xlsx`;
-  XLSX.writeFile(wb, fname);
-  showToast('Excel bestand gedownload.', 'success');
-}
-
-/* =====================================================
    WERK-OMSCHRIJVING MODAL (bij uitklokken)
    -----------------------------------------------------
    Flow: clockOut → openWorkModal() → (optioneel) Tijden aanpassen
@@ -3197,13 +3362,28 @@ function init() {
     showOnboarding();
   }
 
+  // Grafiek opnieuw tekenen bij venster-/oriëntatiewijziging (met debounce)
+  let _chartResizeTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(_chartResizeTimer);
+    _chartResizeTimer = setTimeout(renderChart, 150);
+  });
+
   // Achtergrond-poll: houdt log + lopende sessie cross-device actueel.
-  // Stil (geen indicator/skeleton). Niet pollen tijdens een open modal.
+  // Bewust zuinig — Apps Script heeft een dagelijks runtime-quotum dat je met
+  // meerdere gebruikers snel opsoupeert. Daarom: alleen als de tab zichtbaar is,
+  // niet tijdens een open modal, en op een rustig interval.
   setInterval(function () {
     if (!USER.userId) return;
+    if (document.hidden) return;
     if (document.querySelector('.modal-backdrop.open')) return;
     syncFromSheet({ silent: true });
-  }, 45000);
+  }, 120000);
+
+  // Meteen bijwerken zodra je terugkeert naar de tab (voelt live, kost niets extra)
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && USER.userId) syncFromSheet({ silent: true });
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);
