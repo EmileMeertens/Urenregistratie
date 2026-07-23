@@ -2364,6 +2364,8 @@ function updateClockUI(isActive, startTime) {
    LIVE KLOK
    ===================================================== */
 function startLiveClock() {
+  let laatsteDatum = null; // om een dagovergang te detecteren
+
   function tick() {
     const now = new Date();
     const clockEl = document.getElementById('liveClock');
@@ -2376,6 +2378,16 @@ function startLiveClock() {
       const y    = now.getFullYear();
       dateEl.textContent = `${day} ${d} ${mon} ${y}`;
     }
+
+    // Rolt de datum om (middernacht, en dus ook elke maandag en elke 1e van de
+    // maand)? Dan alles herberekenen: "Vandaag", de weekdoel-voortgang en het
+    // venster van de grafiek. Zo klopt een tabblad dat blijft openstaan ook.
+    const vandaag = toDateKey(now);
+    if (laatsteDatum !== null && laatsteDatum !== vandaag && USER.userId) {
+      updateStats();
+      renderLog();
+    }
+    laatsteDatum = vandaag;
   }
   tick();
   setInterval(tick, 1000);
@@ -2826,8 +2838,13 @@ async function submitSessionForm() {
 
   closeSessionForm();
 
+  // Net als bij verwijderen: skeleton blijft staan tot de Sheet bevestigd heeft,
+  // daarna pas de verse gegevens én de melding.
+  let melding, soort = 'success';
+
   if (_sfMode === 'edit') {
     localEditSession(_sfOrig, entry);
+    melding = 'Sessie bijgewerkt.';
     // Stuur edit naar de Sheet (origClockIn identificeert de rij) — FEATURE 4
     if (CONFIG.adapter === 'googlesheets') {
       showLogSkeleton(); // skeleton tot de wijziging verzonden is
@@ -2844,33 +2861,33 @@ async function submitSessionForm() {
           note:        note,
           month:       entry.month,
         });
-        showToast('Sessie bijgewerkt · Sheets ✓', 'success');
+        melding = 'Sessie bijgewerkt · Sheets ✓';
       } catch (e) {
-        showToast(`Lokaal bijgewerkt. Sheets mislukte: ${e.message}`, 'warning');
+        melding = `Lokaal bijgewerkt. Sheets mislukte: ${e.message}`;
+        soort   = 'warning';
       }
-    } else {
-      showToast('Sessie bijgewerkt.', 'success');
     }
   } else {
     localAddSession(entry);
+    melding = 'Sessie toegevoegd.';
     if (CONFIG.adapter === 'googlesheets') {
       showLogSkeleton(); // skeleton tot de nieuwe sessie verzonden is
       const payload = Object.assign({ action: 'add' }, entry);
       try {
         await new GoogleSheetsAdapter().saveSession(payload);
-        showToast('Sessie toegevoegd · Sheets ✓', 'success');
+        melding = 'Sessie toegevoegd · Sheets ✓';
       } catch (e) {
         addToPending(payload);
-        showToast(`Sessie lokaal toegevoegd. Sheets mislukte: ${e.message}`, 'warning');
+        melding = `Sessie lokaal toegevoegd. Sheets mislukte: ${e.message}`;
+        soort   = 'warning';
         updatePendingCount();
       }
-    } else {
-      showToast('Sessie toegevoegd.', 'success');
     }
   }
 
   updateStats();
   renderLog();
+  showToast(melding, soort);
 }
 
 function deleteSessionFromForm() {
@@ -2885,20 +2902,24 @@ async function confirmDeleteSession(dateKey, clockIn) {
   const dateObj = parseDateKey(dateKey);
   const month = getNlMonthLabel(dateObj.getFullYear(), dateObj.getMonth());
 
+  // De skeleton blijft staan tot de Sheet bevestigd heeft; pas daarna tonen we
+  // de verse gegevens én de melding, zodat beide op hetzelfde moment komen.
+  let melding = 'Sessie verwijderd.', soort = 'success';
+
   if (CONFIG.adapter === 'googlesheets') {
     showLogSkeleton(); // skeleton tot de verwijdering verzonden is
     try {
       await sheetRequest({ action: 'delete', userId: USER.userId, date: dateKey, clockIn: clockIn, month: month });
-      showToast('Sessie verwijderd · Sheets ✓', 'success');
+      melding = 'Sessie verwijderd · Sheets ✓';
     } catch (e) {
-      showToast(`Lokaal verwijderd. Sheets mislukte: ${e.message}`, 'warning');
+      melding = `Lokaal verwijderd. Sheets mislukte: ${e.message}`;
+      soort   = 'warning';
     }
-  } else {
-    showToast('Sessie verwijderd.', 'success');
   }
 
   updateStats();
   renderLog();
+  showToast(melding, soort);
 }
 
 /* --- Lokale log-bewerkingen (spiegelen de Sheet-logica) --- */
