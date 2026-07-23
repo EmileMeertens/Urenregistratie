@@ -50,7 +50,7 @@ function setSpreadsheetId() {
 
 // Versie-stempel — zichtbaar via doGet, zodat je kunt controleren welke code
 // daadwerkelijk gedeployed is. Hoog dit op bij elke wijziging.
-var CODE_VERSION      = 'v13-active-crossdevice';
+var CODE_VERSION      = 'v14-tijd-normalisatie';
 
 var SHEET_SESSIES     = 'Sessies'; // alleen nog fallback voor payload zonder userId
 var SHEET_MAAND       = 'Maandoverzicht';
@@ -157,8 +157,8 @@ function getUserLog_(ss, userId) {
       date:     datum,                       // dd/mm/yyyy
       day:      String(rij[1] || ''),
       session:  Number(rij[2]) || 0,
-      clockIn:  String(rij[3] || ''),
-      clockOut: String(rij[4] || ''),
+      clockIn:  normalizeTijd_(rij[3]),
+      clockOut: normalizeTijd_(rij[4]),
       pause:    (rij[5] === '' || rij[5] === null) ? 0 : (Number(rij[5]) || 0), // F: Pauze
       duration: Number(rij[6]) || 0,        // G: Duur sessie (netto)
       dayTotal: (rij[7] === '' || rij[7] === null) ? 0 : (Number(rij[7]) || 0), // H: Dagtotaal
@@ -288,7 +288,7 @@ function doPost(e) {
       var rows = sheet.getDataRange().getValues();
       for (var r = 1; r < rows.length; r++) {
         if (normalizeDatum_(rows[r][0]) === datum &&
-            String(rows[r][3]).trim() === String(payload.clockIn).trim()) {
+            normalizeTijd_(rows[r][3]) === normalizeTijd_(payload.clockIn)) {
           return jsonResponse({ success: true, duplicate: true });
         }
       }
@@ -393,7 +393,7 @@ function herberekenDag_(sheet, datum) {
 
   for (var r = 1; r < data.length; r++) {
     if (normalizeDatum_(data[r][0]) === doel) {
-      items.push({ row: r + 1, clockIn: String(data[r][3] || ''), duur: Number(data[r][6]) || 0 }); // G: Duur sessie
+      items.push({ row: r + 1, clockIn: normalizeTijd_(data[r][3]), duur: Number(data[r][6]) || 0 }); // G: Duur sessie
     }
   }
   if (items.length === 0) return;
@@ -439,7 +439,7 @@ function sorteerGebruikerstab_(sheet) {
   rows.sort(function (a, b) {
     var ka = datumSortKey_(a[0]), kb = datumSortKey_(b[0]);
     if (ka !== kb) return ka - kb;
-    var ta = String(a[3] || ''), tb = String(b[3] || ''); // inkloktijd HH:MM
+    var ta = normalizeTijd_(a[3]), tb = normalizeTijd_(b[3]); // inkloktijd HH:MM
     return ta < tb ? -1 : (ta > tb ? 1 : 0);
   });
 
@@ -460,9 +460,9 @@ function sorteerGebruikerstab_(sheet) {
 function vindSessieRij_(sheet, datum, clockIn) {
   var data = sheet.getDataRange().getValues();
   var doel = String(datum).trim();
-  var ci   = String(clockIn || '').trim();
+  var ci   = normalizeTijd_(clockIn);
   for (var r = 1; r < data.length; r++) {
-    if (normalizeDatum_(data[r][0]) === doel && String(data[r][3]).trim() === ci) {
+    if (normalizeDatum_(data[r][0]) === doel && normalizeTijd_(data[r][3]) === ci) {
       return r + 1;
     }
   }
@@ -641,6 +641,33 @@ function maandLabelNaarSorteersleutel(label) {
  * @param  {*}      value  Celwaarde (Date of string)
  * @return {string}        dd/mm/yyyy
  */
+/**
+ * Normaliseert een tijd-celwaarde naar "HH:MM".
+ *
+ * ROBUUST: Google Sheets zet "09:00" automatisch om naar een échte tijdwaarde.
+ * getValues() geeft dan een Date (of een breuk van een dag) terug in plaats van
+ * de string. Zonder deze normalisatie mislukken alle vergelijkingen op de
+ * inkloktijd — dedup, bewerken, verwijderen en de chronologische sortering —
+ * en krijgt de app onleesbare tijden te zien.
+ *
+ * @param  {*}      value  Celwaarde (Date, getal of string)
+ * @return {string}        "HH:MM"
+ */
+function normalizeTijd_(value) {
+  if (value instanceof Date) {
+    return ('0' + value.getHours()).slice(-2) + ':' + ('0' + value.getMinutes()).slice(-2);
+  }
+  if (typeof value === 'number') {
+    // Sheets bewaart een tijd als fractie van een etmaal (0.5 = 12:00)
+    var mins = Math.round(value * 24 * 60);
+    var h = Math.floor(mins / 60) % 24, m = ((mins % 60) + 60) % 60;
+    return ('0' + h).slice(-2) + ':' + ('0' + m).slice(-2);
+  }
+  var s = String(value == null ? '' : value).trim();
+  var t = s.match(/(\d{1,2}):(\d{2})/);
+  return t ? ('0' + t[1]).slice(-2) + ':' + t[2] : s;
+}
+
 function normalizeDatum_(value) {
   if (value instanceof Date) {
     var tz = Session.getScriptTimeZone() || 'Europe/Brussels';
@@ -758,6 +785,12 @@ function getOrCreateSheet(ss, naam, headers) {
     // Dan falen alle string-vergelijkingen op kolom A (dedup, dagtotaal,
     // maandoverzicht). Tekstformaat houdt het een string. Geldt voor beide tabs.
     sheet.getRange('A:A').setNumberFormat('@');
+    // Idem voor de tijdkolommen D (Inkloktijd) en E (Uitkloktijd): zonder dit
+    // maakt Sheets van "09:00" een tijdwaarde, en falen de vergelijkingen op
+    // inkloktijd (dedup, bewerken, verwijderen, chronologisch sorteren).
+    if (naam !== SHEET_MAAND) {
+      sheet.getRange('D:E').setNumberFormat('@');
+    }
   }
   return sheet;
 }
